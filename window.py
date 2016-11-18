@@ -133,11 +133,13 @@ class Window(QMainWindow):
         frame.moveCenter(centerPoint)
         self.move(frame.topLeft())
 
-    # This is where all the nodes are drawn
     def paintEvent(self, e):
+        # This is where all the nodes and links are drawn
         qp = QPainter()
         qp.begin(self)
+        # Draw active node
         self.drawNode(qp, self.activeNodeGraphic)
+        # Draw sibling nodes and links
         for i in range(len(self.destNodeIDs)):
             self.drawLink(qp, self.activeNodeGraphic.sourceAnchor,
             self.activeLinkNodeGraphics[i].destAnchor)
@@ -145,12 +147,19 @@ class Window(QMainWindow):
         qp.end()
 
     def drawNode(self, qp, nodeGraphic):
-        qp.drawRoundedRect(nodeGraphic.centerX-nodeGraphic.width/2,
-        nodeGraphic.centerY-nodeGraphic.height/2, nodeGraphic.width,
-        nodeGraphic.height, 10, 10)
-        qp.drawText(nodeGraphic.centerX-nodeGraphic.width/2+5,
-        nodeGraphic.centerY-nodeGraphic.height/2+25,
-        nodeGraphic.nodeDBModel.model.record(0).value('name').toString())
+        # This defines how a node graphic is drawn on the window
+        # Draw the rectangle
+        qp.drawRoundedRect(
+            nodeGraphic.centerX-nodeGraphic.width/2,
+            nodeGraphic.centerY-nodeGraphic.height/2, nodeGraphic.width,
+            nodeGraphic.height, 10, 10)
+        # Draw the text
+        print nodeGraphic.nodeDBModel.model.record(0).value('name').toString()
+        qp.drawText(
+            nodeGraphic.centerX-nodeGraphic.width/2+5,
+            nodeGraphic.centerY-nodeGraphic.height/2+25,
+            nodeGraphic.nodeDBModel.model.record(0).value('name').toString()
+        )
 
     def drawLink(self, qp, anchor1, anchor2):
         pen = QPen(Qt.black, 1, Qt.SolidLine)
