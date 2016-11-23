@@ -18,16 +18,19 @@ QPen)
 
 
 class NodeGraphic:
-    def __init__(self):
-        self.nodeDBModel = None
-        self.centerX = 250
-        self.centerY = 200
+    # A graphical representation of a node containing a database model which
+    # defines text and links with other nodes.
+    def __init__(self, nodeID=1, centerX=250, centerY=200):
+        # Define DB model for node
+        self.nodeDBModel = db.nodeDBModel(nodeID)
+        # Define node graphic geometry
+        self.centerX = centerX
+        self.centerY = centerY
         self.width = 100
         self.height = 50
-        self.sourceAnchor = Anchor()
-        self.sourceAnchor.changePos((self.centerX+self.width/2), self.centerY)
-        self.destAnchor = Anchor()
-        self.destAnchor.changePos((self.centerX-self.width/2), self.centerY)
+        self.sourceAnchor = self.Anchor((self.centerX+self.width/2), self.centerY)
+        self.destAnchor = self.Anchor((self.centerX-self.width/2), self.centerY)
+        # Define node graphic text
         self.text = None
 
     def changeModel(self, nodeDBModelID):
@@ -46,15 +49,14 @@ class NodeGraphic:
         self.sourceAnchor.changePos((self.centerX+self.width/2), self.centerY)
         self.destAnchor.changePos((self.centerX-self.width/2), self.centerY)
 
+    class Anchor:
+        def __init__(self, x, y):
+            self.x = x
+            self.y = y
 
-class Anchor:
-    def __init__(self):
-        self.x = 1
-        self.y = 1
-
-    def changePos(self, x, y):
-        self.x = x
-        self.y = y
+        def changePos(self, x, y):
+            self.x = x
+            self.y = y
 
 
 class LinkGraphic:
@@ -67,38 +69,38 @@ class LinkGraphic:
         self.destAnchor = destAnchor
 
 
-# A QWidget is a less specific form of window - QMainWindow has menubars, etc.
 class Window(QMainWindow):
+    # Implements a window widget displaying nodes in the database
 
     def __init__(self):
         # Initialization from superclass and call to class constructor
         super(Window, self).__init__()
-
+        # Define Brain that is shown in window
         self.brain = db.Brain()
-
+        # Define active node graphic
         self.activeNodeID = 30
-        self.activeNodeGraphic = NodeGraphic()
-        self.activeNodeGraphic.changeModel(self.activeNodeID)
-
+        self.activeNodeGraphic = NodeGraphic(nodeID=self.activeNodeID)
+        # Define link node graphics
         self.activeLinks = db.linksDBModel()
         self.activeLinks.setActiveNode(self.activeNodeID)
         self.destNodeIDs = self.activeLinks.destNodeIDs()
         relationTop = 100
         self.activeLinkNodeGraphics = []
         for i in range(len(self.destNodeIDs)):
-            nodeGraphic = NodeGraphic()
-            nodeGraphic.changeModel(self.destNodeIDs[i])
-            nodeGraphic.changePos(400, relationTop+60*i)
+            nodeGraphic = NodeGraphic(
+                nodeID=self.destNodeIDs[i],
+                centerX=400,
+                centerY=relationTop+60*i
+            )
             self.activeLinkNodeGraphics.append(nodeGraphic)
-
+        # Initialize the window user interface
         self.initUI()
 
 
     def initUI(self, labelText=None):
-        """ Window class constructor. Sets window geometry, window title,
+        """ Window constructor. Sets window geometry, window title,
         window icon, menu bar, tool bar, status bar, tool tip, and quit
         button. Creates the display object."""
-
         # Set basic config of window
         self.resize(500, 400)
         self.center()
@@ -106,23 +108,18 @@ class Window(QMainWindow):
         # self.setGeometry(300, 300, 300, 220)
         self.setWindowTitle('Grav\'s window')
         self.setWindowIcon(QIcon('web.png'))
-
         # Set up actions for window
         exitAction = QAction(QIcon('exit.png'), '&Exit', self)
         exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(qApp.quit)
-
         # Set up menu bar, tool bar, status bar
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
         fileMenu.addAction(exitAction)
-
         self.toolbar = self.addToolBar('Exit')
         self.toolbar.addAction(exitAction)
-
         self.statusBar().showMessage('Ready')
-
         #Display the window
         self.show()
 
@@ -141,20 +138,22 @@ class Window(QMainWindow):
         self.drawNode(qp, self.activeNodeGraphic)
         # Draw sibling nodes and links
         for i in range(len(self.destNodeIDs)):
+            self.drawNode(qp, self.activeLinkNodeGraphics[i])
             self.drawLink(qp, self.activeNodeGraphic.sourceAnchor,
             self.activeLinkNodeGraphics[i].destAnchor)
-            self.drawNode(qp, self.activeLinkNodeGraphics[i])
         qp.end()
 
     def drawNode(self, qp, nodeGraphic):
         # This defines how a node graphic is drawn on the window
         # Draw the rectangle
-        qp.drawRoundedRect(
+        node = qp.drawRoundedRect(
             nodeGraphic.centerX-nodeGraphic.width/2,
             nodeGraphic.centerY-nodeGraphic.height/2, nodeGraphic.width,
-            nodeGraphic.height, 10, 10)
+            nodeGraphic.height, 10, 10
+        )
+        # THIS IS THE NEW PART!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        #node.mouseReleaseEvent = self.changeActiveNode(nodeID=nodeGraphic.nodeDBModel.model.record(0).value('name').toString())
         # Draw the text
-        print nodeGraphic.nodeDBModel.model.record(0).value('name').toString()
         qp.drawText(
             nodeGraphic.centerX-nodeGraphic.width/2+5,
             nodeGraphic.centerY-nodeGraphic.height/2+25,
@@ -167,7 +166,7 @@ class Window(QMainWindow):
         qp.drawLine(anchor1.x, anchor1.y, anchor2.x, anchor2.y)
 
 # VERIFY THAT THIS DOES SOMETHING AND IS BUILT RIGHT!!!
-    def changeActiveNode(self, nodeID=1):
+    def changeActiveNode(self, event, nodeID=1):
         self.activeNodeID = nodeID
         self.activeNode = db.nodeDBModel(nodeID=self.activeNodeID)
         self.activeLinks = db.linksDBModel(activeNode=self.activeNodeID)
@@ -188,10 +187,7 @@ class Window(QMainWindow):
 if __name__ == "__main__":
 
     app = QApplication(sys.argv)
-    #newBrain = Brain()
     newWindow = Window()
-    #newWindow.changeLabel(newBrain.queryModel())
-    #newWindow.changeTableView(newBrain.relationalModel(filter=None))
     sys.exit(app.exec_())
 #------------------------------------------
 

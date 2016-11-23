@@ -51,8 +51,8 @@ class Brain:
 
 class nodeDBModel:
     #A read-write model based on a SQL query on the THOUGHTS table
-    def __init__(self):
-        self.nodeID = 1
+    def __init__(self, nodeID=1):
+        self.nodeID = nodeID
         listNumber = False
 
         self.model = QSqlQueryModel()
