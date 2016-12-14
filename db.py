@@ -1,5 +1,5 @@
 #! python3
-#File: brainDB.py
+#File: db.py
 
 """
 Interface between grav package and TheBrain H2 database, making use of
@@ -91,19 +91,3 @@ class linksDBModel:
                 destNodeIDs.append(self.model.record(i).value('ida').toInt())
 
         return(destNodeIDs)
-
-
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-#
-#  Loose code below:
-#
-### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
-
-"""
-        stringOutput = []
-        for i in range(0, end):
-            id = model.record(i).value('id').toInt()
-            guid = model.record(i).value('guid').toString()
-            stringOutput.append(str(id))
-            stringOutput.append(guid)
-            stringOutput.append('\n')"""

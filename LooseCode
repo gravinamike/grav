@@ -1,0 +1,330 @@
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+#
+#  Loose code below:
+#
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+
+
+"""        # Create an independently positioned label
+        if labelText == None:
+            labelText = self.windowText
+
+        self.label1 = QLabel(labelText, self)
+        self.label1.move(50, 150)
+        self.label1.resize(200, 200)
+
+        # Create a grid layout widget
+        grid = QGridLayout()
+        grid.setSpacing(10)
+
+        gridNames = ['11', '', '', '14',
+                     '21', '', '23', 'TEST',
+                     '?', '', '33', '34']
+
+        positions = [ (i,j) for i in range(3) for j in range (4)]
+
+        for position, name in zip(positions, gridNames):
+            if name == '':
+                continue
+            button = QPushButton(name)
+            grid.addWidget(button, *position)
+
+        lineEdit = QLineEdit()
+        textEdit = QTextEdit()
+
+        grid.addWidget(lineEdit, 0, 1)
+        grid.addWidget(textEdit, 1, 1, 2, 1)
+
+        gridBox = QWidget()
+        gridBox.setLayout(grid)
+
+        # Create a central widget of the main window with a stretch
+        # factor layout, and include the grid layout from above
+        stretchBox = QWidget()
+
+        upButton = QPushButton('Up')
+        downButton = QPushButton('Down')
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(gridBox)
+        hbox.addStretch(1)
+        hbox.addWidget(upButton)
+        hbox.addWidget(downButton)
+
+        vbox = QVBoxLayout()
+        vbox.addStretch(1)
+        vbox.addLayout(hbox)
+
+        stretchBox.setLayout(vbox)
+
+        self.setCentralWidget(self.view) #stretchBox
+
+
+
+
+
+            def close(self):
+                self.__database.close()
+                self.__database.removeDatabase()
+
+
+
+
+    def tableModel(self, table='PUBLIC.THOUGHTS', filter='id < 11'):
+        #A read-write model that works on a single SQL table at a time
+
+        model = QSqlTableModel()
+        model.setTable(table)
+        model.setFilter(filter)
+        model.setSort(1, Qt.DescendingOrder)
+        model.select()
+
+        print model.rowCount()
+        input('Press enter...')
+
+        for i in range(1, model.rowCount()):
+            id = model.record(i).value('id').toInt()
+            guid = model.record(i).value('guid').toString()
+            #This thing was next:       qDebug() << name << salary
+            print str(id), guid
+
+        return(model)
+
+
+    def relationalModel(self, table='PUBLIC.LINKS', filter='id < 11'):
+        #A read-write model that works on relations
+
+        model = QSqlRelationalTableModel()
+        model.setTable(table)
+        model.setFilter(filter)
+        model.setSort(1, Qt.DescendingOrder)
+        key = model.primaryKey()
+        model.setRelation(3, QSqlRelation('PUBLIC.THOUGHTS', 'id', 'name'))
+        model.setRelation(4, QSqlRelation('PUBLIC.THOUGHTS', 'id', 'name'))
+        model.setPrimaryKey(key)
+        model.select()
+
+        # print model.rowCount()
+        input('Press enter...')
+
+        for i in range(1, model.rowCount()):
+            id = model.record(i).value('id').toInt()
+            guid = model.record(i).value('guid').toString()
+            #This thing was next:       qDebug() << name << salary
+            print  str(id), guid
+
+        return(model)
+
+
+
+    def query(self, queryString='SELECT * FROM thought'):
+        query = QSqlQuery()
+        query.exec_(queryString)
+        # If call fails exec() returns false; info at QSqlDatabase.lastError()
+        query.next()
+        print str(query.value(0))
+
+
+
+
+        # Create a quit button
+        quitButton = QPushButton('Quit', self)
+        quitButton.clicked.connect(QCoreApplication.instance().quit)
+        quitButton.resize(quitButton.sizeHint())
+        quitButton.move(50, 100)
+        quitButton.setToolTip('This is a quit button.')
+
+        #Create a relational table view
+        self.view = QTableView()
+        self.view.setModel(self.viewModel)
+        self.view.move(50, 200)
+
+
+
+    def changeLabel(self, labelText='New text!'):
+
+        # Changes text of label
+        self.label1.setText(labelText)
+
+    def changeTableView(self, newModel):
+        # Changes model of table view
+        self.view.setModel(newModel)
+
+
+
+
+
+    def queryModel(self, queryString=
+    'SELECT * FROM thoughts', listNumber=False):
+        #A read-write model based on a SQL query
+
+        model = QSqlQueryModel()
+        model.setQuery(queryString)
+
+        if listNumber == False:
+            end = model.rowCount()-1
+        else:
+            end = listNumber
+
+        stringOutput = []
+
+        print model.rowCount()
+        input('Press enter...')
+
+        for i in range(0, end):
+            id = model.record(i).value('id').toInt()
+            guid = model.record(i).value('guid').toString()
+            #This thing was next:       qDebug() << name << salary
+            stringOutput.append(str(id))
+            stringOutput.append(guid)
+            stringOutput.append('\n')
+            #print str(id), guid
+
+        return(' '.join(stringOutput))
+
+
+
+
+
+        self.windowText = 'This is the default text'
+        self.viewModel = QSqlQueryModel()
+
+
+        # Set up window-wide tooltip
+        QToolTip.setFont(QFont('SansSerif', 10))
+        self.setToolTip('This is <b>Grav\'s</b> window.')
+
+
+
+                """
+
+
+
+
+
+"""def paintEvent(self, e):
+    # This is where all the nodes and links are drawn
+    qp = QPainter()
+    qp.begin(self)
+    # Draw active node
+    ###self.drawNode(qp, self.activeNodeGraphic)
+    self.addNode(self.activeNodeGraphic)
+    # Draw sibling nodes and links
+    for i in range(len(self.destNodeIDs)):
+        ###self.drawNode(qp, self.activeLinkNodeGraphics[i])
+        self.addNode(self.activeLinkNodeGraphics[i])
+        self.addLink(self.activeNodeGraphic.sourceAnchor,
+        self.activeLinkNodeGraphics[i].destAnchor)
+    qp.end()"""
+
+
+
+
+
+    """class NodeGraphic:
+        # A graphical representation of a node containing a database model which
+        # defines text and links with other nodes.
+        def __init__(self, nodeID=1, centerX=250, centerY=200):
+            # Define DB model for node
+            self.nodeDBModel = db.nodeDBModel(nodeID)
+            # Define node graphic geometry
+            self.centerX = centerX
+            self.centerY = centerY
+            self.width = 100
+            self.height = 50
+            self.sourceAnchor = self.Anchor((self.centerX+self.width/2),
+            self.centerY)
+            self.destAnchor = self.Anchor((self.centerX-self.width/2), self.centerY)
+            # Define node graphic text
+            self.text = None
+
+        def changeModel(self, nodeDBModelID):
+            self.nodeDBModel = db.nodeDBModel()
+            self.nodeDBModel.changeNodeID(nodeID=nodeDBModelID)
+
+        def changePos(self, centerX, centerY):
+            self.centerX = centerX
+            self.centerY = centerY
+            self.sourceAnchor.changePos((self.centerX+self.width/2), self.centerY)
+            self.destAnchor.changePos((self.centerX-self.width/2), self.centerY)
+
+        def changeDimensions(self, width, height):
+            self.width = width
+            self.height = height
+            self.sourceAnchor.changePos((self.centerX+self.width/2), self.centerY)
+            self.destAnchor.changePos((self.centerX-self.width/2), self.centerY)
+
+        class Anchor:
+            def __init__(self, x, y):
+                self.x = x
+                self.y = y
+
+            def changePos(self, x, y):
+                self.x = x
+                self.y = y"""
+
+
+
+
+For db:
+    ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+    #
+    #  Loose code below:
+    #
+    ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ###
+
+
+
+    def changeModel(self, nodeDBModelID):
+        self.nodeDBModel = db.nodeDBModel()
+        self.nodeDBModel.changeNodeID(nodeID=nodeDBModelID)
+    """
+            stringOutput = []
+            for i in range(0, end):
+                id = model.record(i).value('id').toInt()
+                guid = model.record(i).value('guid').toString()
+                stringOutput.append(str(id))
+                stringOutput.append(guid)
+                stringOutput.append('\n')"""
+
+
+
+
+                def changePos(self, centerX, centerY):
+                    self.centerX, self.centerY = centerX, centerY
+                    #THE BELOW IS INCORRECT
+                    self.sourceAnchor.changePos((self.centerX+self.width/2), self.centerY)
+                    self.destAnchor.changePos((self.centerX-self.width/2), self.centerY)
+
+
+
+                    class LinkGraphic:
+                        def __init__(self):
+                            self.sourceAnchor = None
+                            self.destAnchor = None
+
+                        def changeAnchors(self, sourceAnchor, destAnchor):
+                            self.sourceAnchor = sourceAnchor
+                            self.destAnchor = destAnchor
+
+
+
+  """linkImg = self.addLink(
+          self.activeNodeImg,
+          self.activeNodeImg.sourceAnchor,
+          self.activeLinkNodeImgs[i],
+          self.activeLinkNodeImgs[i].destAnchor
+      )
+      self.activeNodeImg.addLine(linkImg, True)
+      linkNodeImg.addLine(linkImg, False)"""
+
+      """self.activeLinkNodeImgs = []
+      for i in range(len(self.destNodeIDs)):
+          nodeImg = NodeImg(
+              name='activeLinkNodeImg_'+str(i),
+              nodeID=self.destNodeIDs[i],
+              centerX=400,
+              centerY=relationTop+60*i
+          )
+          self.activeLinkNodeImgs.append(nodeImg)"""
