@@ -79,15 +79,19 @@ class linksDBModel:
 
     def destNodeIDs(self):
         if self.listNumber == False:
-            end = self.model.rowCount()-1
+            end = self.model.rowCount()
         else:
             end = self.listNumber
 
         destNodeIDs = []
         for i in range(0, end):
-            if self.model.record(i).value('ida').toInt() == self.activeNodeID:
-                destNodeIDs.append(self.model.record(i).value('idb').toInt())
-            else:
-                destNodeIDs.append(self.model.record(i).value('ida').toInt())
+            if self.model.record(i).value('ida') == self.activeNodeID:
+                destNodeIDs.append(self.model.record(i).value('idb').toString())
+            # There are actually 2 links for each visible link. Double links are
+            # created at the same time, and have sequential IDs. We are ignoring
+            # the second one, but the code below would reinstantiate it (and
+            # create false link nodes "mirroring" the active node).
+            #if self.model.record(i).value('idb') == self.activeNodeID:
+                #destNodeIDs.append(self.model.record(i).value('ida').toString())
 
-        return(destNodeIDs)
+        return destNodeIDs

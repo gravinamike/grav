@@ -23,13 +23,15 @@ class NodeImg(QGraphicsRectItem):
     # defines text and links with other nodes.
     # Subclasses the rectangle graphic to have connected lines
 
-    def __init__(self, name, nodeID=1, centerX=0, centerY=0, width=100,
+    def __init__(self, window, name, nodeID=1, centerX=0, centerY=0, width=100,
                 height=50):
         # Initialization from superclass and call to class constructor
         super(NodeImg, self).__init__(centerX-width/2, centerY-height/2, width,
         height)
-        # Define node graphic name
+        # Define node graphic basic info
         self.name = name
+        self.nodeID = nodeID
+        self.window = window
         # Define node graphic geometry
         self.centerX, self.centerY = centerX, centerY
         self.width, self.height = width, height
@@ -77,6 +79,11 @@ class NodeImg(QGraphicsRectItem):
             p1 = self.lines[lineName].line().p1()
             p2 = newEndpointPos
         self.lines[lineName].setLine(QLineF(p1, p2))
+
+    def mouseDoubleClickEvent(self, event):
+        self.window.removeNetwork()
+        self.window.changeActiveNode(self.nodeID)
+        self.window.renderNetwork()
 
     class Anchor:
         def __init__(self, xOffset, yOffset):
@@ -128,17 +135,17 @@ class Window(QMainWindow):
         self.scene = QGraphicsScene()
         self.view = QGraphicsView(self.scene)
         # Show the node tree
-        self.showTree()
+        self.renderNetwork()
         # Set central widget to be the view
         self.setCentralWidget(self.view)
         # Display the window
         self.show()
 
-    def showTree(self):
-        # Add the active node image into the view
+    def renderNetwork(self):
+        # Add the active node image into the scene
         self.activeNodeImg = self.addNode(name='activeNodeImg',
         nodeID=self.activeNodeID, centerX=500, centerY=400)
-        # Add sibling node images into the view
+        # Add sibling node images into the scene
         relationTop = 275
         self.activeLinkNodeImgs = []
         for i in range(len(self.destNodeIDs)):
@@ -149,7 +156,7 @@ class Window(QMainWindow):
                 centerY=relationTop+60*i
             )
             self.activeLinkNodeImgs.append(linkNodeImg)
-        # Add link images into the view
+        # Add link images into the scene
         self.activeLinkImgs = []
         for i in range(len(self.destNodeIDs)):
             linkImg = self.addLink(
@@ -160,9 +167,31 @@ class Window(QMainWindow):
             )
             self.activeLinkImgs.append(linkImg)
 
+    def removeNetwork(self):
+        # Remove active node image from the scene
+        for child in self.activeNodeImg.childItems():
+            self.scene.removeItem(child)
+            del child
+        self.scene.removeItem(self.activeNodeImg)
+        del self.activeNodeImg
+        # Remove sibling node images from the scene
+        for i in self.activeLinkNodeImgs:
+            for child in i.childItems():
+                self.scene.removeItem(child)
+                del child
+            self.scene.removeItem(i)
+            del i
+        # Remove link images from the scene
+        for i in self.activeLinkImgs:
+            for child in i.childItems():
+                self.scene.removeItem(child)
+                del child
+            self.scene.removeItem(i)
+            del i
+
     def addNode(self, name, nodeID, centerX=0, centerY=0, width=100, height=50):
         # Add the node graphic and set properties
-        node = NodeImg(name, nodeID, centerX, centerY,
+        node = NodeImg(self, name, nodeID, centerX, centerY,
         width, height)
         node.setFlag(QGraphicsItem.ItemIsSelectable)
         node.setFlag(QGraphicsItem.ItemIsMovable)
@@ -170,10 +199,11 @@ class Window(QMainWindow):
         self.scene.addItem(node)
         # Add the text and set it as child of the node graphic
         text = self.scene.addText(
+            node.nodeDBModel.model.record(0).value('ID').toString() + '\n\n' +
             node.nodeDBModel.model.record(0).value('name').toString()
         )
         text.setPos(node.centerX-node.width/2+5,
-        node.centerY-node.height/2+25)
+        node.centerY-node.height/2)
         text.setParentItem(node)
         # Return the pointer for the node
         return node
@@ -191,11 +221,10 @@ class Window(QMainWindow):
         # Return the pointer for the link
         return linkImg
 
-# VERIFY THAT THIS DOES SOMETHING AND IS BUILT RIGHT!!!
-    """def changeActiveNode(self, event, nodeID=1):
+    def changeActiveNode(self, nodeID=1):
         self.activeNodeID = nodeID
-        self.activeNode = db.nodeDBModel(nodeID=self.activeNodeID)
-        self.activeLinks = db.linksDBModel(activeNode=self.activeNodeID)"""
+        self.activeLinks.setActiveNode(self.activeNodeID)
+        self.destNodeIDs = self.activeLinks.destNodeIDs()
 
     def center(self):
         # Centers window in desktop
