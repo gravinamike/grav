@@ -8,7 +8,7 @@ Using code from http://ftp.ics.uci.edu/pub/centos0/ics-custom-build/
 BUILD/PyQt-x11-gpl-4.7.2/doc/html/qtsql.html#connecting-to-databases
 
 author: Mike Gravina
-last edited: August 2016
+last edited: November 2016
 """
 
 import site
@@ -64,17 +64,33 @@ class nodeDBModel:
         query = 'SELECT * FROM thoughts WHERE id=' + str(self.nodeID)
         self.model.setQuery(query)
 
+class notesDBModel:
+    #A read-write model based on a SQL query on the notes table
+    def __init__(self, nodeID=1):
+        self.nodeID = nodeID
+        listNumber = False
+
+        self.modelNodeToNotes = QSqlQueryModel()
+        query = 'SELECT * FROM entrytoobject WHERE objectid=' + str(self.nodeID)
+        self.modelNodeToNotes.setQuery(query)
+
+        notesID = self.modelNodeToNotes.record(0).value('entryid').toString()
+
+        self.modelNotes = QSqlQueryModel()
+        query = 'SELECT * FROM entries WHERE id=' + str(notesID)
+        self.modelNotes.setQuery(query)
 
 class linksDBModel:
     #A read-write model based on a SQL query on the LINKS table
-    def __init__(self):
+    def __init__(self, activeNodeID, dirs=[1]):
         self.listNumber = False
+        self.activeNodeID = activeNodeID
+        self.dirs = dirs
         self.model = QSqlQueryModel()
 
-    def setActiveNode(self, activeNodeID):
-        self.activeNodeID = activeNodeID
-        query = 'SELECT * FROM links WHERE ida=' + str(self.activeNodeID) + \
-        ' or idb=' + str(self.activeNodeID)
+        query = 'SELECT * FROM links WHERE (ida=' + str(self.activeNodeID) + \
+        ' or idb=' + str(self.activeNodeID) + ') and dir IN (' + \
+        ', '.join(str(dir) for dir in self.dirs) + ')'
         self.model.setQuery(query)
 
     def destNodeIDs(self):
