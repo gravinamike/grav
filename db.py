@@ -12,14 +12,20 @@ last edited: November 2016
 """
 
 import site
-from PyQt4.QtCore import(Qt, QCoreApplication)
-from PyQt4.QtGui import(QApplication)
-from PyQt4.QtSql import(QSqlDatabase, QSqlQuery, QSqlQueryModel,
-QSqlTableModel, QSqlRelationalTableModel, QSqlRelation)
+from subprocess import Popen
+from PyQt4.QtGui import QApplication
+from PyQt4.QtSql import(QSqlDatabase, QSqlQueryModel)
 
 
 class Brain:
+    # Instantiates a Brain object that links to an active H2 database
+
     def __init__(self):
+        # Open the database
+        self.h2 = Popen(["java", "-cp",
+        "C:/Program Files (x86)/TheBrain/lib/h2.jar", "org.h2.tools.Server"])
+
+        #IS THIS CORRECT? IT REFERS TO PYQT 5, NOT 4!
         site_pack_path = site.getsitepackages()[1]
         QApplication.addLibraryPath(
         '{0}\\PyQt5\\plugins'.format(site_pack_path))
@@ -55,14 +61,11 @@ class nodeDBModel:
         self.nodeID = nodeID
         listNumber = False
 
+        # Define and execute query
         self.model = QSqlQueryModel()
         query = 'SELECT * FROM thoughts WHERE id=' + str(self.nodeID)
         self.model.setQuery(query)
 
-    def changeNodeID(self, nodeID):
-        self.nodeID = nodeID
-        query = 'SELECT * FROM thoughts WHERE id=' + str(self.nodeID)
-        self.model.setQuery(query)
 
 class notesDBModel:
     #A read-write model based on a SQL query on the notes table
@@ -70,12 +73,13 @@ class notesDBModel:
         self.nodeID = nodeID
         listNumber = False
 
+        # Define and execute query for linker from node to notes
         self.modelNodeToNotes = QSqlQueryModel()
         query = 'SELECT * FROM entrytoobject WHERE objectid=' + str(self.nodeID)
         self.modelNodeToNotes.setQuery(query)
-
         notesID = self.modelNodeToNotes.record(0).value('entryid').toString()
 
+        # Define and execute query for the notes themselves
         self.modelNotes = QSqlQueryModel()
         query = 'SELECT * FROM entries WHERE id=' + str(notesID)
         self.modelNotes.setQuery(query)
@@ -88,17 +92,22 @@ class linksDBModel:
         self.dirs = dirs
         self.model = QSqlQueryModel()
 
+        # Define and execute query
         query = 'SELECT * FROM links WHERE (ida=' + str(self.activeNodeID) + \
         ' or idb=' + str(self.activeNodeID) + ') and dir IN (' + \
         ', '.join(str(dir) for dir in self.dirs) + ')'
         self.model.setQuery(query)
 
     def destNodeIDs(self):
+        # Queries and returns the IDs of nodes related to the active node
+
+        # Determines whether all or only a fixed number of links are queried
         if self.listNumber == False:
             end = self.model.rowCount()
         else:
             end = self.listNumber
 
+        # Defines and performs the query and adds the nodes to a list
         destNodeIDs = []
         for i in range(0, end):
             if self.model.record(i).value('ida') == self.activeNodeID:
@@ -110,4 +119,5 @@ class linksDBModel:
             #if self.model.record(i).value('idb') == self.activeNodeID:
                 #destNodeIDs.append(self.model.record(i).value('ida').toString())
 
+        # Returns the related node IDs
         return destNodeIDs

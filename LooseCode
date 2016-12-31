@@ -328,3 +328,13 @@ For db:
               centerY=relationTop+60*i
           )
           self.activeLinkNodeImgs.append(nodeImg)"""
+
+
+
+
+
+
+  def changeDimensions(self, width, height):
+      self.width, self.height = width, height
+      self.sourceAnchor = self.Anchor(self.width/2, 0)
+      self.destAnchor = self.Anchor(self.width/-2, 0)
