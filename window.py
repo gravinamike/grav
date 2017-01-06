@@ -9,12 +9,13 @@ last edited: December 2016
 """
 
 import sys
+import math
 import grav.db as db
 from grav.nodeImg import NodeImg
-from PyQt4.QtCore import Qt
-from PyQt4.QtGui import(QIcon, QMainWindow, QApplication, QWidget,
+from PyQt4.QtCore import(Qt, QSignalMapper)
+from PyQt4.QtGui import(QIcon, QMainWindow, QApplication, QWidget, QPushButton,
 QDesktopWidget, QMessageBox, QAction, qApp, QHBoxLayout, QVBoxLayout, QLineEdit,
-QTextEdit, QPen, QGraphicsView, QGraphicsScene, QGraphicsItem, QMenu)
+QTextEdit, QPen, QFont, QGraphicsView, QGraphicsScene, QGraphicsItem, QMenu)
 
 
 class Window(QMainWindow):
@@ -52,6 +53,10 @@ class Window(QMainWindow):
         self.toolbar = self.addToolBar('Exit')
         self.toolbar.addAction(exitAction)
         self.statusBar().showMessage('Ready')
+        # Set size of node images
+        self.nodeImgWidth = 100
+        self.nodeImgHeight = 50
+        self.nodeImgTextSize = 12
 
         # Create the network scene, view and element list for later deletion
         self.sceneNetwork = QGraphicsScene()
@@ -67,6 +72,26 @@ class Window(QMainWindow):
         self.sceneHistory = QGraphicsScene()
         self.viewHistory = QGraphicsView(self.sceneHistory)
 
+        # Create the node attribute pane
+        attribBox = QHBoxLayout()
+        lineEdit3 = QLineEdit()
+
+        self.biggerButton = QPushButton('Bigger')
+        self.biggerButtonMapper = QSignalMapper()
+        self.biggerButton.clicked.connect(self.biggerButtonMapper.map)
+        self.biggerButtonMapper.setMapping(self.biggerButton, 1)
+        self.biggerButtonMapper.mapped.connect(self.updateNodeImgSize)
+
+        self.smallerButton = QPushButton('Smaller')
+        self.smallerButtonMapper = QSignalMapper()
+        self.smallerButton.clicked.connect(self.smallerButtonMapper.map)
+        self.smallerButtonMapper.setMapping(self.smallerButton, -1)
+        self.smallerButtonMapper.mapped.connect(self.updateNodeImgSize)
+
+        attribBox.addWidget(lineEdit3)
+        attribBox.addWidget(self.biggerButton)
+        attribBox.addWidget(self.smallerButton)
+
         # Set main-widget box/stretch layout using the above views
         # Network pane
         viewPane = QVBoxLayout()
@@ -78,11 +103,10 @@ class Window(QMainWindow):
         self.textEdit = QTextEdit()
         hbox.addWidget(self.textEdit)
         hbox.addLayout(viewPane)
-        # Network/notes/other pane
+        # Network/notes/attribute pane
         vbox = QVBoxLayout()
         vbox.addLayout(hbox)
-        lineEdit3 = QLineEdit()
-        vbox.addWidget(lineEdit3)
+        vbox.addLayout(attribBox)
         # Encapsulating widget
         stretchBox = QWidget()
         stretchBox.setLayout(vbox)
@@ -92,7 +116,7 @@ class Window(QMainWindow):
         self.setActiveNode(nodeID=self.activeNodeID)
         self.renderPins()
         self.historyNodeImgs = []
-        #self.renderHistory()
+        #self.renderHistoryNodes()
 
         # Display the window
         self.show()
@@ -131,7 +155,10 @@ class Window(QMainWindow):
             nodeID=self.activeNodeID,
             scene=self.sceneNetwork,
             centerX=self.networkCenterX,
-            centerY=self.networkCenterY
+            centerY=self.networkCenterY,
+            width=self.nodeImgWidth,
+            height=self.nodeImgHeight,
+            textSize=self.nodeImgTextSize
         )
         self.networkElements.append(self.activeNodeImg)
 
@@ -144,26 +171,29 @@ class Window(QMainWindow):
             for i in range(len(destNodeIDs)):
                 if dir == 1:
                     relationStartLimit = self.networkCenterX - \
-                    55*(len(destNodeIDs)-1)
-                    centerX = relationStartLimit+110*i
+                    self.nodeImgWidth*0.55*(len(destNodeIDs)-1)
+                    centerX = relationStartLimit+self.nodeImgWidth*1.1*i
                     centerY = self.networkCenterY+self.relationOrbit
                 elif dir == 2:
                     relationStartLimit = self.networkCenterX - \
-                    55*(len(destNodeIDs)-1)
-                    centerX = relationStartLimit+110*i
+                    self.nodeImgWidth*0.55*(len(destNodeIDs)-1)
+                    centerX = relationStartLimit+self.nodeImgWidth*1.1*i
                     centerY = self.networkCenterY-self.relationOrbit
                 elif dir == 3:
                     relationStartLimit = self.networkCenterY - \
-                    30*(len(destNodeIDs)-1)
+                    self.nodeImgHeight*0.55*(len(destNodeIDs)-1)
                     centerX = self.networkCenterX+self.relationOrbit
-                    centerY = relationStartLimit+60*i
+                    centerY = relationStartLimit+self.nodeImgHeight*1.1*i
                 linkNodeImg = self.addNode(
                     name='activeLinkNodeImg_dir'+str(dir)+'_'+str(i),
                     nodeID=destNodeIDs[i],
                     scene=self.sceneNetwork,
                     dir=dir,
                     centerX=centerX,
-                    centerY=centerY
+                    centerY=centerY,
+                    width=self.nodeImgWidth,
+                    height=self.nodeImgHeight,
+                    textSize=self.nodeImgTextSize
                 )
                 linkNodeImgs_thisDir.append(linkNodeImg)
                 self.activeLinkNodeImgs.update({str(dir): linkNodeImgs_thisDir})
@@ -207,8 +237,11 @@ class Window(QMainWindow):
                 name='pinNodeImg_'+str(i),
                 nodeID=self.pinNodeIDs[i],
                 scene=self.scenePins,
-                centerX=110*i,
-                centerY=0
+                centerX=self.nodeImgWidth*i*1.1,
+                centerY=0,
+                width=self.nodeImgWidth,
+                height=self.nodeImgHeight,
+                textSize=self.nodeImgTextSize
             )
             self.pinNodeImgs.append(pinNodeImg)
 
@@ -220,8 +253,11 @@ class Window(QMainWindow):
                 name='historyNodeImg_'+str(i),
                 nodeID=self.historyNodeIDs[i],
                 scene=self.sceneHistory,
-                centerX=-110*i,
-                centerY=0
+                centerX=-self.nodeImgWidth*i*1.1,
+                centerY=0,
+                width=self.nodeImgWidth,
+                height=self.nodeImgHeight,
+                textSize=self.nodeImgTextSize
             )
             self.historyNodeImgs.append(historyNodeImg)
 
@@ -247,7 +283,7 @@ class Window(QMainWindow):
         self.renderHistoryNodes()
 
     def addNode(self, name, nodeID, scene, dir=0, centerX=0, centerY=0,
-                width=100, height=50):
+                width=100, height=50, textSize=12):
         # Add a node image into the specified scene
 
         # Initialize the node graphic and properties
@@ -261,13 +297,17 @@ class Window(QMainWindow):
         scene.addItem(node)
 
         # Add text and set it as child of the node graphic
-        text = scene.addText(
-            node.nodeDBModel.model.record(0).value('ID').toString() + '\n\n' +
-            node.nodeDBModel.model.record(0).value('name').toString()
+        node.text = scene.addText(
+            node.nodeDBModel.model.record(0).value('name').toString() + '\n' +
+            node.nodeDBModel.model.record(0).value('ID').toString()
         )
-        text.setPos(node.centerX-node.width/2+5,
+        node.text.setTextWidth(width*0.9)
+        font = QFont('Arial')
+        font.setPixelSize(textSize)
+        node.text.setFont(font)
+        node.text.setPos(node.centerX-node.width/2+5,
         node.centerY-node.height/2)
-        text.setParentItem(node)
+        node.text.setParentItem(node)
 
         # Return the node's pointer
         return node
@@ -291,6 +331,24 @@ class Window(QMainWindow):
 
         # Return pointer for the link
         return linkImg
+
+    def updateNodeImgSize(self, scaleFactorExp):
+        # Change the size of node images and text
+
+        # Set size of window-level node image size parameters
+        scaleFactor = 1.2**scaleFactorExp
+        self.nodeImgWidth = self.nodeImgWidth*scaleFactor
+        self.nodeImgHeight = self.nodeImgHeight*scaleFactor
+        self.nodeImgTextSize = self.nodeImgTextSize*scaleFactor
+
+        # Set size of node images
+        self.removeImgSet(self.networkElements, self.sceneNetwork)
+        self.networkElements = []
+        self.renderNetwork(dirs=[1, 2, 3])
+        self.removeImgSet(self.pinNodeImgs, self.scenePins)
+        self.renderPins()
+        self.removeImgSet(self.historyNodeImgs, self.sceneHistory)
+        self.renderHistoryNodes()
 
     def center(self):
         # Center window in desktop

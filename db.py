@@ -23,7 +23,8 @@ class Brain:
     def __init__(self):
         # Open the database
         self.h2 = Popen(["java", "-cp",
-        "C:/Program Files (x86)/TheBrain/lib/h2.jar", "org.h2.tools.Server"])
+        "C:/Program Files (x86)/TheBrain/lib/h2.jar", "org.h2.tools.Server",
+        "-pg"])
 
         #IS THIS CORRECT? IT REFERS TO PYQT 5, NOT 4!
         site_pack_path = site.getsitepackages()[1]

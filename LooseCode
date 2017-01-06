@@ -338,3 +338,16 @@ For db:
       self.width, self.height = width, height
       self.sourceAnchor = self.Anchor(self.width/2, 0)
       self.destAnchor = self.Anchor(self.width/-2, 0)
+
+
+
+
+
+      """elementLists = [self.networkElements, self.pinNodeImgs,
+      self.historyNodeImgs]
+      for elementList in elementLists:
+          for element in elementList:
+              if isinstance(element, NodeImg):
+                  x = element.rect().x()
+                  y = element.rect().y()
+                  element.setRect(x, y, nodeImgWidth, nodeImgHeight)"""
