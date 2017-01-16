@@ -13,14 +13,19 @@ last edited: November 2016
 
 import site
 from subprocess import Popen
-from PyQt4.QtGui import QApplication
-from PyQt4.QtSql import(QSqlDatabase, QSqlQueryModel)
+from uuid import uuid4
+from datetime import datetime
+from PyQt4.QtGui import(QApplication, QMessageBox, QInputDialog, QLineEdit)
+from PyQt4.QtSql import(QSqlDatabase, QSqlQuery, QSqlQueryModel)
 
 
 class Brain:
     # Instantiates a Brain object that links to an active H2 database
 
-    def __init__(self):
+    def __init__(self, window):
+        # Initialize attributes
+        self.window = window
+
         # Open the database
         self.h2 = Popen(["java", "-cp",
         "C:/Program Files (x86)/TheBrain/lib/h2.jar", "org.h2.tools.Server",
@@ -55,8 +60,112 @@ class Brain:
             print 'Number: ', str(self.__database.lastError().number())
             print 'Loaded drivers:', str(QSqlDatabase.drivers())
 
+    def querySet(self, queryTexts):
+        # Define and execute a set of queries against the database
 
-class nodeDBModel:
+        # Initiate transaction
+        #QSqlDatabase.database().transaction()
+        self.__database.transaction()
+
+        # Iterate through supplied queries, executing and reporting success/fail
+        sqlOk = 1
+        for queryText in queryTexts:
+            query = QSqlQuery()
+            print queryText
+            sqlOk = query.exec_(queryText)
+            if sqlOk != 1:
+                break
+
+        # Either detect any errors and rollback, or otherwise commit.
+        if sqlOk == 1:
+            self.__database.commit()
+            print 'Committed'
+        else:
+            message = QMessageBox.critical(None, 'Error',
+            query.lastError().text())
+            self.__database.rollback()
+
+    def createRelation(self, sourceNodeID, dir, sidedness):
+        # Create a related node to the active node and associated links
+
+        # Display input box querying for name value
+        entry, ok = QInputDialog.getText(None, 'Enter name for new Thing',
+        'Name:', QLineEdit.Normal, '')
+        # Detect invalid names and abort (return) method if necessary
+        if ok and not entry == '':
+            newName = entry
+        else:
+            return
+
+        # Get a new GUIDs and date/timestamp
+        GUID0, GUID1, GUID2 = uuid4(), uuid4(), uuid4()
+        timeDateStamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+
+        # Define and execute query to determine current max node serial
+        model = QSqlQueryModel()
+        query = 'SELECT * FROM thoughts WHERE id=(SELECT MAX(id) FROM thoughts)'
+        model.setQuery(query)
+        newNodeSerial = str(int(model.record(0).value('id').toString()) + 1)
+
+        # Define and execute query to determine current max link serial
+        model = QSqlQueryModel()
+        query = 'SELECT * FROM links WHERE id=(SELECT MAX(id) FROM links)'
+        model.setQuery(query)
+        linkSerial1 = str(int(model.record(0).value('id').toString()) + 1)
+        linkSerial2 = str(int(model.record(0).value('id').toString()) + 2)
+
+        # Determine the opposite direction number from the relation direction
+        if dir % 2 == 1:
+            dirOpposite = dir + 1
+        else:
+            dirOpposite = dir - 1
+
+        # Define queries to insert new relation node and links
+        queryTexts = [
+        "INSERT INTO thoughts (id, brainid, guid, name, creationdatetime) " +
+        "VALUES (%s, %s, '%s', '%s', '%s')" % (newNodeSerial, 1, GUID0, \
+        newName, timeDateStamp),
+        #
+        "INSERT INTO links (id, brainid, guid, ida, idb, creationdatetime, " +
+        "dir) VALUES (%s, %s, '%s', %s, %s, '%s', %s)" % \
+        (linkSerial1, 1, GUID1, sourceNodeID, newNodeSerial, timeDateStamp, \
+        dir),
+        #
+        "INSERT INTO links (id, brainid, guid, ida, idb, creationdatetime, " +
+        "dir) VALUES (%s, %s, '%s', %s, %s, '%s', %s)" % \
+        (linkSerial2, 1, GUID2, newNodeSerial, sourceNodeID, timeDateStamp, \
+        dirOpposite)
+        ]
+
+        # Execute queries, then refresh the network view
+        queries = self.querySet(queryTexts)
+        self.window.setActiveNode(self.window.activeNodeID)
+
+    def deleteRelation(self, nodeID):
+        # Delete a node and all its relations.
+
+        # Display input box querying to continue or not
+        confirm = QMessageBox.question(None, 'Confirm delete',
+        'Delete this node?', QMessageBox.Yes, QMessageBox.No)
+
+        # Either call the delete methood or abort
+        if confirm == QMessageBox.Yes:
+            # Define queries to delete node and links
+            queryTexts = [
+            "DELETE FROM links WHERE (ida=" + str(nodeID) + \
+            " or idb=" + str(nodeID) + ")",
+            #
+            "DELETE FROM thoughts WHERE id=" + str(nodeID)
+            ]
+            # Execute queries, then refresh the network view
+            queries = self.querySet(queryTexts)
+            self.window.setActiveNode(self.window.activeNodeID)
+
+        else:
+            print 'Canceled...'##########################################################
+
+
+class NodeDBModel:
     #A read-write model based on a SQL query on the THOUGHTS table
     def __init__(self, nodeID=1):
         self.nodeID = nodeID
@@ -68,9 +177,10 @@ class nodeDBModel:
         self.model.setQuery(query)
 
 
-class notesDBModel:
+class NotesDBModel:
     #A read-write model based on a SQL query on the notes table
-    def __init__(self, nodeID=1):
+    def __init__(self, window, nodeID=1):
+        self.window = window
         self.nodeID = nodeID
         listNumber = False
 
@@ -78,14 +188,26 @@ class notesDBModel:
         self.modelNodeToNotes = QSqlQueryModel()
         query = 'SELECT * FROM entrytoobject WHERE objectid=' + str(self.nodeID)
         self.modelNodeToNotes.setQuery(query)
-        notesID = self.modelNodeToNotes.record(0).value('entryid').toString()
+        self.notesID = self.modelNodeToNotes.record(0).value(
+        'entryid').toString()
 
         # Define and execute query for the notes themselves
         self.modelNotes = QSqlQueryModel()
-        query = 'SELECT * FROM entries WHERE id=' + str(notesID)
+        query = 'SELECT * FROM entries WHERE id=' + str(self.notesID)
         self.modelNotes.setQuery(query)
 
-class linksDBModel:
+    def saveNotes(self, notesText):
+        # Define and execute query to save written notes to database notes
+        QSqlDatabase.database().transaction()
+        updateQuery = QSqlQuery()
+        queryText = "UPDATE entries SET body=N\'" + notesText + \
+        "\' WHERE id=" + str(self.notesID)
+        updateIt = updateQuery.exec_(queryText)
+        QSqlDatabase.database().commit()
+        self.window.renderNotes()
+
+
+class LinksDBModel:
     #A read-write model based on a SQL query on the LINKS table
     def __init__(self, activeNodeID, dirs=[1]):
         self.listNumber = False
@@ -118,7 +240,7 @@ class linksDBModel:
             # the second one, but the code below would reinstantiate it (and
             # create false link nodes "mirroring" the active node).
             #if self.model.record(i).value('idb') == self.activeNodeID:
-                #destNodeIDs.append(self.model.record(i).value('ida').toString())
+            #destNodeIDs.append(self.model.record(i).value('ida').toString())
 
         # Returns the related node IDs
         return destNodeIDs

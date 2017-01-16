@@ -25,7 +25,7 @@ class Window(QMainWindow):
         # Initialization from superclass and call to class constructor
         super(Window, self).__init__()
         # Initialize Brain that is shown in window
-        self.brain = db.Brain()
+        self.brain = db.Brain(self)
         # Define active node of network, pin nodes, history nodes
         self.activeNodeID = 30
         self.pinNodeIDs = []
@@ -72,6 +72,14 @@ class Window(QMainWindow):
         self.sceneHistory = QGraphicsScene()
         self.viewHistory = QGraphicsView(self.sceneHistory)
 
+        # Create the notes pane
+        notesBox = QVBoxLayout()
+        self.textEdit = QTextEdit()
+        self.saveNotesButton = QPushButton('Save notes')
+        self.saveNotesButton.clicked.connect(self.saveNotes)
+        notesBox.addWidget(self.saveNotesButton)
+        notesBox.addWidget(self.textEdit)
+
         # Create the node attribute pane
         attribBox = QHBoxLayout()
         lineEdit3 = QLineEdit()
@@ -100,8 +108,7 @@ class Window(QMainWindow):
         viewPane.addWidget(self.viewHistory)
         # Network/notes pane
         hbox = QHBoxLayout()
-        self.textEdit = QTextEdit()
-        hbox.addWidget(self.textEdit)
+        hbox.addLayout(notesBox)
         hbox.addLayout(viewPane)
         # Network/notes/attribute pane
         vbox = QVBoxLayout()
@@ -128,11 +135,11 @@ class Window(QMainWindow):
         self.activeNodeID = nodeID
 
         # Create destNodeID lists for each direction from the active node
-        self.activeLinks_dir1 = db.linksDBModel(self.activeNodeID, dirs=[1])
+        self.activeLinks_dir1 = db.LinksDBModel(self.activeNodeID, dirs=[1])
         self.destNodeIDs_dir1 = self.activeLinks_dir1.destNodeIDs()
-        self.activeLinks_dir2 = db.linksDBModel(self.activeNodeID, dirs=[2])
+        self.activeLinks_dir2 = db.LinksDBModel(self.activeNodeID, dirs=[2])
         self.destNodeIDs_dir2 = self.activeLinks_dir2.destNodeIDs()
-        self.activeLinks_dir3 = db.linksDBModel(self.activeNodeID, dirs=[3])
+        self.activeLinks_dir3 = db.LinksDBModel(self.activeNodeID, dirs=[3])
         self.destNodeIDs_dir3 = self.activeLinks_dir3.destNodeIDs()
 
         # Remove the old network, refresh element list, and render everything
@@ -211,23 +218,28 @@ class Window(QMainWindow):
                 elif dir == 3:
                     anchor1=self.activeNodeImg.rightAnchor
                     anchor2=self.activeLinkNodeImgs[str(dir)][i].leftAnchor
-                for i in range(len(self.activeLinkNodeImgs[str(dir)])):
-                    linkImg = self.addLink(
-                        scene=self.sceneNetwork,
-                        nodeImg1=self.activeNodeImg,
-                        anchor1=anchor1,
-                        nodeImg2=self.activeLinkNodeImgs[str(dir)][i],
-                        anchor2=anchor2
-                    )
-                    self.activeLinkImgs.append(linkImg)
-                    self.networkElements.append(linkImg)
+                linkImg = self.addLink(
+                    scene=self.sceneNetwork,
+                    nodeImg1=self.activeNodeImg,
+                    anchor1=anchor1,
+                    nodeImg2=self.activeLinkNodeImgs[str(dir)][i],
+                    anchor2=anchor2
+                )
+                self.activeLinkImgs.append(linkImg)
+                self.networkElements.append(linkImg)
 
     def renderNotes(self):
         # Render the notes for the active node
-        self.notesDBModel = db.notesDBModel(self.activeNodeID)
+        self.notesDBModel = db.NotesDBModel(self, self.activeNodeID)
         self.textEdit.setText(
             self.notesDBModel.modelNotes.record(0).value('body').toString()
         )
+
+    def saveNotes(self):
+        # Save the notes for the active node
+        notesText = self.textEdit.toHtml()
+        notesText = notesText.replace('\'', '\"')
+        self.notesDBModel.saveNotes(notesText)
 
     def renderPins(self):
         # Add the pin node images into the scene
@@ -296,6 +308,12 @@ class Window(QMainWindow):
             )
         scene.addItem(node)
 
+        # Initialize the anchor graphics and set as children of node graphics
+        for anchor in node.anchors:
+            scene.addItem(anchor)
+            anchor.setFlags(QGraphicsItem.ItemIsSelectable)
+            anchor.setParentItem(node)
+
         # Add text and set it as child of the node graphic
         node.text = scene.addText(
             node.nodeDBModel.model.record(0).value('name').toString() + '\n' +
@@ -305,8 +323,8 @@ class Window(QMainWindow):
         font = QFont('Arial')
         font.setPixelSize(textSize)
         node.text.setFont(font)
-        node.text.setPos(node.centerX-node.width/2+5,
-        node.centerY-node.height/2)
+        node.text.setPos(   node.centerX-node.width/2+5,
+                            node.centerY-node.height/2)
         node.text.setParentItem(node)
 
         # Return the node's pointer

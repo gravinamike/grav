@@ -11,7 +11,7 @@ last edited: December 2016
 import grav.db as db
 from PyQt4.QtCore import(QLineF, QPointF, QSignalMapper)
 from PyQt4.QtGui import(QAction, QLineEdit, QGraphicsItem, QGraphicsRectItem,
-QMenu)
+QGraphicsEllipseItem, QMenu)
 
 
 class NodeImg(QGraphicsRectItem):
@@ -19,8 +19,8 @@ class NodeImg(QGraphicsRectItem):
     # defines text and links with other nodes. Adds connecting-lines
     # functionality to basic rectangle graphic class
 
-    def __init__(self, window, name, nodeID=1, dir=0, centerX=0, centerY=0, width=100,
-                height=50):
+    def __init__(self, window, name, nodeID=1, dir=0, centerX=0, centerY=0,
+                width=100, height=50):
         # Initialization from superclass and call to class constructor
         super(NodeImg, self).__init__(centerX-width/2, centerY-height/2, width,
         height)
@@ -34,13 +34,15 @@ class NodeImg(QGraphicsRectItem):
         # Define geometry of node graphic and link anchors
         self.centerX, self.centerY = centerX, centerY
         self.width, self.height = width, height
-        self.leftAnchor = self.Anchor(self.width/-2, 0)
-        self.rightAnchor = self.Anchor(self.width/2, 0)
-        self.topAnchor = self.Anchor(0, self.height/-2)
-        self.bottomAnchor = self.Anchor(0, self.height/2)
+        self.leftAnchor = Anchor(self.window, self, 4, self.width/-2, 0)
+        self.rightAnchor = Anchor(self.window, self, 3, self.width/2, 0)
+        self.topAnchor = Anchor(self.window, self, 2, 0, self.height/-2)
+        self.bottomAnchor = Anchor(self.window, self, 1, 0, self.height/2)
+        self.anchors = [self.leftAnchor, self.rightAnchor, self.topAnchor,
+                        self.bottomAnchor]
 
         # Instantiate node graphic DB model
-        self.nodeDBModel = db.nodeDBModel(nodeID)
+        self.nodeDBModel = db.NodeDBModel(nodeID)
 
         # Create an empty array for holding the node's linked lines
         self.lines = {}
@@ -111,21 +113,44 @@ class NodeImg(QGraphicsRectItem):
 
         # Action to add a pin
         self.addPinAction = QAction('Add to pins', None)
-        signalMapper = QSignalMapper()
-        self.addPinAction.triggered.connect(signalMapper.map)
-        signalMapper.setMapping(self.addPinAction, int(self.nodeID))
-        signalMapper.mapped.connect(self.window.addPin)
+        signalMapper1 = QSignalMapper()
+        self.addPinAction.triggered.connect(signalMapper1.map)
+        signalMapper1.setMapping(self.addPinAction, int(self.nodeID))
+        signalMapper1.mapped.connect(self.window.addPin)
         menu.addAction(self.addPinAction)
+
+        # Action to delete this node
+        self.deleteAction = QAction('Delete node', None)
+        signalMapper2 = QSignalMapper()
+        self.deleteAction.triggered.connect(signalMapper2.map)
+        signalMapper2.setMapping(self.deleteAction, int(self.nodeID))
+        signalMapper2.mapped.connect(self.window.brain.deleteRelation)
+        menu.addAction(self.deleteAction)
 
         # Displays the menu
         menu.exec_(event.screenPos())
 
-    def print_out(self):
+    def print_out(self, fake):
         # Prints out the word "Triggered"
         print 'Triggered', str(self.nodeID)
 
-    class Anchor:
-        # Defines an anchor for the node with two offsets
-        def __init__(self, xOffset, yOffset):
-            self.xOffset = xOffset
-            self.yOffset = yOffset
+
+class Anchor(QGraphicsEllipseItem):
+    # Defines an anchor for the node with two offsets
+
+    def __init__(self, window, node, dir, xOffset, yOffset):
+        # Define offsets node graphic
+        self.window = window
+        self.node = node
+        self.dir = dir
+        self.xOffset = xOffset
+        self.yOffset = yOffset
+        self.centerX = self.node.centerX + self.xOffset - 5
+        self.centerY = self.node.centerY + self.yOffset - 5
+
+        # Initialization from superclass and call to class constructor
+        super(Anchor, self).__init__(self.centerX, self.centerY, 10, 10)
+
+    def mouseDoubleClickEvent(self, event):
+        # On double-click, open dialog to create a new relation node
+        self.window.brain.createRelation(self.node.nodeID, self.dir, None)
