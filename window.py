@@ -12,6 +12,7 @@ import sys
 import math
 import grav.db as db
 from grav.nodeImg import NodeImg
+from grav.htmlParse import htmlParse
 from PyQt4.QtCore import(Qt, QSignalMapper)
 from PyQt4.QtGui import(QIcon, QMainWindow, QApplication, QWidget, QPushButton,
 QDesktopWidget, QMessageBox, QAction, qApp, QHBoxLayout, QVBoxLayout, QLineEdit,
@@ -237,9 +238,10 @@ class Window(QMainWindow):
 
     def saveNotes(self):
         # Save the notes for the active node
-        notesText = self.textEdit.toHtml()
-        notesText = notesText.replace('\'', '\"')
-        self.notesDBModel.saveNotes(notesText)
+        notesText = htmlParse(self.textEdit.toHtml())
+        #notesText = self.textEdit.toHtml()
+        self.brain.saveNotes(notesText)
+        self.renderNotes()
 
     def renderPins(self):
         # Add the pin node images into the scene

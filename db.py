@@ -160,9 +160,17 @@ class Brain:
             # Execute queries, then refresh the network view
             queries = self.querySet(queryTexts)
             self.window.setActiveNode(self.window.activeNodeID)
-
         else:
-            print 'Canceled...'##########################################################
+            print 'Canceled...'
+
+    def saveNotes(self, notesText):
+        # Define queries to insert new relation node and links
+        queryTexts = [
+        "UPDATE entries SET body=N\'" + notesText +
+        "\' WHERE id=" + str(self.window.notesDBModel.notesID)
+        ]
+        # Execute queries, then refresh the network view
+        queries = self.querySet(queryTexts)
 
 
 class NodeDBModel:
@@ -195,16 +203,6 @@ class NotesDBModel:
         self.modelNotes = QSqlQueryModel()
         query = 'SELECT * FROM entries WHERE id=' + str(self.notesID)
         self.modelNotes.setQuery(query)
-
-    def saveNotes(self, notesText):
-        # Define and execute query to save written notes to database notes
-        QSqlDatabase.database().transaction()
-        updateQuery = QSqlQuery()
-        queryText = "UPDATE entries SET body=N\'" + notesText + \
-        "\' WHERE id=" + str(self.notesID)
-        updateIt = updateQuery.exec_(queryText)
-        QSqlDatabase.database().commit()
-        self.window.renderNotes()
 
 
 class LinksDBModel:
