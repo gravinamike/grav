@@ -75,12 +75,16 @@ class NodeImg(QGraphicsRectItem):
                 dirAnchor = self.topAnchor
             elif self.lines[lineName].dirFromNode == 3:
                 dirAnchor = self.rightAnchor
+            elif self.lines[lineName].dirFromNode == 4:
+                dirAnchor = self.leftAnchor
         elif self.dir == 1:
             dirAnchor = self.topAnchor
         elif self.dir == 2:
             dirAnchor = self.bottomAnchor
         elif self.dir == 3:
             dirAnchor = self.leftAnchor
+        elif self.dir == 4:
+            dirAnchor = self.rightAnchor
         xOffset = self.centerX + dirAnchor.xOffset
         yOffset = self.centerY + dirAnchor.yOffset
         newMovingPointPos = QPointF(newPos.x()+xOffset, newPos.y()+yOffset)
@@ -143,6 +147,7 @@ class Anchor(QGraphicsEllipseItem):
         self.window = window
         self.node = node
         self.dir = dir
+        self.direction = self.window.axisAssignments[str(self.dir)]
         self.xOffset = xOffset
         self.yOffset = yOffset
         self.centerX = self.node.centerX + self.xOffset - 5
@@ -153,4 +158,4 @@ class Anchor(QGraphicsEllipseItem):
 
     def mouseDoubleClickEvent(self, event):
         # On double-click, open dialog to create a new relation node
-        self.window.brain.createRelation(self.node.nodeID, self.dir, None)
+        self.window.brain.createRelation(self.node.nodeID, self.direction, None)

@@ -15,8 +15,9 @@ import site
 from subprocess import Popen
 from uuid import uuid4
 from datetime import datetime
+from PyQt4.QtCore import(Qt, QObject, QString, QLatin1String)
 from PyQt4.QtGui import(QApplication, QMessageBox, QInputDialog, QLineEdit)
-from PyQt4.QtSql import(QSqlDatabase, QSqlQuery, QSqlQueryModel)
+from PyQt4.QtSql import(QSqlDatabase, QSqlQuery, QSqlQueryModel, QSqlTableModel)
 
 
 class Brain:
@@ -60,6 +61,43 @@ class Brain:
             print 'Number: ', str(self.__database.lastError().number())
             print 'Loaded drivers:', str(QSqlDatabase.drivers())
 
+        # If DIRECTIONS table doesn't yet exist, create it
+        if self.__database.tables().contains(
+        QLatin1String('PUBLIC.DIRECTIONS')):
+            print 'Table found!'
+        else:
+            print 'Directions table not found - creating table!'
+            queryTexts = [
+            'CREATE TABLE public.directions(id integer, text varchar(255), \
+            thebraindir integer, opposite integer)'
+            ]
+            # memo may instead be varchar(255)
+            queries = self.querySet(queryTexts)
+
+        # If DIRECTION field doesn't yet exist in LINKS table, create it
+        if self.__database.record('PUBLIC.LINKS').contains(
+        QLatin1String('DIRECTION')):
+            print 'Field found!'
+        else:
+            print 'Direction field not found in links table- creating field!'
+            queryTexts = [
+            'ALTER TABLE public.links ADD direction integer',
+            #
+            'UPDATE public.links SET direction = dir WHERE direction IS NULL'
+            ]
+            queries = self.querySet(queryTexts)
+
+        # Create a read-write model based the DIRECTIONS table
+        self.modelDirections = QSqlTableModel(None, self.__database)
+        self.modelDirections.setTable('PUBLIC.DIRECTIONS')
+        self.modelDirections.setSort(0, Qt.AscendingOrder)
+        self.modelDirections.setHeaderData(1, Qt.Horizontal, 'Direction')
+        self.modelDirections.setHeaderData(2, Qt.Horizontal, 'TheBrainDir')
+        self.modelDirections.setHeaderData(3, Qt.Horizontal, 'Opposite')
+        self.modelDirections.setEditStrategy(QSqlTableModel.OnFieldChange)
+        #self.modelDirections.dataChanged.connect(self.report1)
+        self.modelDirections.select()
+
     def querySet(self, queryTexts):
         # Define and execute a set of queries against the database
 
@@ -84,6 +122,60 @@ class Brain:
             message = QMessageBox.critical(None, 'Error',
             query.lastError().text())
             self.__database.rollback()
+
+    def createDirection(self):
+        # Add a new record to the DIRECTIONS table.
+
+        """createDirection = self.modelDirections.insertRows(
+        self.modelDirections.rowCount(), 1)
+        print createDirection
+        print self.modelDirections.rowCount()
+        print self.modelDirections.lastError().databaseText()"""
+
+        # Define and execute query to determine current max direction serial
+        model = QSqlQueryModel()
+        query = 'SELECT * FROM directions WHERE id=(SELECT MAX(id) FROM \
+        directions)'
+        model.setQuery(query)
+        if model.record(0).value('id').toString() == '':
+            newDirectionSerial = 0
+        else:
+            newDirectionSerial = int(model.record(0).value('id').toString()) + 1
+        print str(newDirectionSerial)
+
+        # Define queries to insert new direction record
+        queryTexts = [
+        'INSERT INTO public.directions (id, text, thebraindir, opposite) \
+        VALUES (%s, NULL, 1, NULL)' % (newDirectionSerial)
+        ]
+
+        # Execute queries and update view
+        queries = self.querySet(queryTexts)
+        #self.modelDirections.select()
+        #self.modelDirections.select()
+
+    def deleteDirection(self):
+        # Delete last record in the DIRECTIONS table.
+
+        # Define and execute query to determine current max direction serial
+        model = QSqlQueryModel()
+        query = 'SELECT * FROM directions WHERE id=(SELECT MAX(id) FROM \
+        directions)'
+        model.setQuery(query)
+        if model.record(0).value('id').toString() == '':
+            print 'No records to delete!'
+        else:
+            directionSerial = int(model.record(0).value('id').toString())
+            print str(directionSerial)
+
+            # Define queries to remove last direction record
+            queryTexts = [
+            "DELETE FROM directions WHERE (id=" + str(directionSerial) + ")"
+            ]
+
+            # Execute queries and update view
+            queries = self.querySet(queryTexts)
+            self.modelDirections.select()
 
     def createRelation(self, sourceNodeID, dir, sidedness):
         # Create a related node to the active node and associated links
@@ -114,11 +206,14 @@ class Brain:
         linkSerial1 = str(int(model.record(0).value('id').toString()) + 1)
         linkSerial2 = str(int(model.record(0).value('id').toString()) + 2)
 
-        # Determine the opposite direction number from the relation direction
-        if dir % 2 == 1:
-            dirOpposite = dir + 1
-        else:
-            dirOpposite = dir - 1
+        # Determine the opposite and TheBrain classic direction numbers from the
+        # relation direction
+        model = QSqlQueryModel()
+        query = 'SELECT * FROM directions WHERE id=(' + str(dir) + ')'
+        model.setQuery(query)
+        theBrainDir = int(model.record(0).value('thebraindir').toString())
+        dirOpposite = int(model.record(0).value('opposite').toString())
+        theBrainDirOpposites = {1: 2, 2: 1, 3: 3}
 
         # Define queries to insert new relation node and links
         queryTexts = [
@@ -127,14 +222,14 @@ class Brain:
         newName, timeDateStamp),
         #
         "INSERT INTO links (id, brainid, guid, ida, idb, creationdatetime, " +
-        "dir) VALUES (%s, %s, '%s', %s, %s, '%s', %s)" % \
+        "dir, direction) VALUES (%s, %s, '%s', %s, %s, '%s', %s, %s)" % \
         (linkSerial1, 1, GUID1, sourceNodeID, newNodeSerial, timeDateStamp, \
-        dir),
+        theBrainDir, dir),
         #
         "INSERT INTO links (id, brainid, guid, ida, idb, creationdatetime, " +
-        "dir) VALUES (%s, %s, '%s', %s, %s, '%s', %s)" % \
+        "dir, direction) VALUES (%s, %s, '%s', %s, %s, '%s', %s, %s)" % \
         (linkSerial2, 1, GUID2, newNodeSerial, sourceNodeID, timeDateStamp, \
-        dirOpposite)
+        theBrainDirOpposites[theBrainDir], dirOpposite)
         ]
 
         # Execute queries, then refresh the network view
@@ -171,6 +266,20 @@ class Brain:
         ]
         # Execute queries, then refresh the network view
         queries = self.querySet(queryTexts)
+
+
+class AxisDirectionsDBModel:
+    #A read-write model based on a SQL query on the DIRECTIONS table
+    def __init__(self, *dirs):
+
+        # Define and execute query to retrieve direction info
+        dirList = []
+        for dir in dirs:
+            dirList.append(str(dir))
+        self.model = QSqlQueryModel()
+        query = 'SELECT * FROM directions WHERE id=(' + \
+        ') or id=('.join(dirList) + ')'
+        self.model.setQuery(query)
 
 
 class NodeDBModel:
@@ -215,7 +324,7 @@ class LinksDBModel:
 
         # Define and execute query
         query = 'SELECT * FROM links WHERE (ida=' + str(self.activeNodeID) + \
-        ' or idb=' + str(self.activeNodeID) + ') and dir IN (' + \
+        ' or idb=' + str(self.activeNodeID) + ') and direction IN (' + \
         ', '.join(str(dir) for dir in self.dirs) + ')'
         self.model.setQuery(query)
 

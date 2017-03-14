@@ -12,11 +12,13 @@ import sys
 import math
 import grav.db as db
 from grav.nodeImg import NodeImg
+from grav.axes import(AxisHandleLong, AxisHandlePole)
 from grav.htmlParse import htmlParse
 from PyQt4.QtCore import(Qt, QSignalMapper)
 from PyQt4.QtGui import(QIcon, QMainWindow, QApplication, QWidget, QPushButton,
 QDesktopWidget, QMessageBox, QAction, qApp, QHBoxLayout, QVBoxLayout, QLineEdit,
-QTextEdit, QPen, QFont, QGraphicsView, QGraphicsScene, QGraphicsItem, QMenu)
+QTextEdit, QPen, QFont, QGraphicsView, QGraphicsScene, QGraphicsItem, QMenu,
+QGraphicsRectItem, QTableView)
 
 
 class Window(QMainWindow):
@@ -31,6 +33,9 @@ class Window(QMainWindow):
         self.activeNodeID = 30
         self.pinNodeIDs = []
         self.historyNodeIDs = []
+        # Set relationship directions to each view axis
+        self.axisDirections = db.AxisDirectionsDBModel(1, 2, 3, 4)
+        self.axisAssignments = {'1': 1, '2': 2, '3': 3, '4': 4}
         # Initialize the window user interface
         self.initUI()
 
@@ -63,6 +68,7 @@ class Window(QMainWindow):
         self.sceneNetwork = QGraphicsScene()
         self.view = QGraphicsView(self.sceneNetwork)
         self.networkElements = []
+        self.directionElements = []
         #self.sceneNetwork.setSceneRect(0, 0, 1000, 1000)
 
         # Create the pin scene/view
@@ -80,6 +86,32 @@ class Window(QMainWindow):
         self.saveNotesButton.clicked.connect(self.saveNotes)
         notesBox.addWidget(self.saveNotesButton)
         notesBox.addWidget(self.textEdit)
+
+        # Create the direction table portal and direction-add/remove buttons
+        self.tableDirections = QTableView()
+        self.tableDirections.setModel(self.brain.modelDirections)
+        #self.tableDirections.setColumnHidden(0, True)
+        self.tableDirections.setColumnWidth(1, 170)
+        self.tableDirections.setColumnWidth(2, 170)
+        self.tableDirections.setColumnWidth(3, 170)
+
+        self.buttonAddDir = QPushButton('Add direction')
+        self.buttonAddDir.clicked.connect(self.brain.createDirection)
+        self.buttonDelDir = QPushButton('Delete direction')
+        self.buttonDelDir.clicked.connect(self.brain.deleteDirection)
+
+        self.directionsBox = QVBoxLayout()
+        self.directionsBox.addWidget(self.tableDirections)
+        self.directionsBox.addWidget(self.buttonAddDir)
+        self.directionsBox.addWidget(self.buttonDelDir)
+
+        # Create the axis-direction-setting view
+        self.sceneDirections = QGraphicsScene()
+        self.sceneDirections.setSceneRect(-200, -200, 400, 400)
+        self.viewDirections = QGraphicsView(self.sceneDirections)
+        self.viewDirections.setFixedSize(400, 400)
+        self.viewDirections.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.viewDirections.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         # Create the node attribute pane
         attribBox = QHBoxLayout()
@@ -100,6 +132,8 @@ class Window(QMainWindow):
         attribBox.addWidget(lineEdit3)
         attribBox.addWidget(self.biggerButton)
         attribBox.addWidget(self.smallerButton)
+        attribBox.addLayout(self.directionsBox)
+        attribBox.addWidget(self.viewDirections)
 
         # Set main-widget box/stretch layout using the above views
         # Network pane
@@ -120,14 +154,87 @@ class Window(QMainWindow):
         stretchBox.setLayout(vbox)
         self.setCentralWidget(stretchBox)
 
-        # Display the network, pins, and history
+        # Display the network, pins, history and direction-selector
         self.setActiveNode(nodeID=self.activeNodeID)
         self.renderPins()
         self.historyNodeImgs = []
+        self.renderDirections(self.sceneDirections)
         #self.renderHistoryNodes()
 
         # Display the window
         self.show()
+
+    def assignAxis(self, axisDir, assignedDir):
+        self.axisAssignments[str(axisDir)] = assignedDir
+        self.renderDirections(self.sceneDirections)
+        self.setActiveNode(self.activeNodeID)
+
+    def assignAxisAndOpposite(self, axisDir, assignedDir, oppositeDir):
+        self.axisAssignments[str(axisDir)] = assignedDir
+        axisOppositeDirs = {'1': 2, '2': 1, '3': 4, '4': 3}
+        self.axisAssignments[str(axisOppositeDirs[str(axisDir)])] = oppositeDir
+        self.renderDirections(self.sceneDirections)
+        self.setActiveNode(self.activeNodeID)
+
+    def renderDirections(self, scene):
+        # Render the directions-selection dummy axes
+
+        # Clear out the old directions scene
+        self.removeImgSet(self.directionElements, self.sceneDirections)
+        self.directionElements = []
+
+        # Specify and render the polar axis handles
+        handleInfo = [['1', 1, 0, 150], ['2', 2, 0, -150], ['3', 3, 150, 0],
+        ['4', 4, -150, 0]]
+
+        for name, axisDir, centerX, centerY in handleInfo:
+            axisHandlePole = AxisHandlePole(self, name, axisDir, centerX,
+            centerY, 50, 50)
+            scene.addItem(axisHandlePole)
+            self.directionElements.append(axisHandlePole)
+
+        # Specify and render the long axis handles
+        handleInfo = [['1-2', 1, 0, 75, 10, 100], ['2-1', 2, 0, -75, 10, 100],
+        ['3-4', 3, 75, 0, 100, 10], ['4-3', 4, -75, 0, 100, 10]]
+
+        for name, axisDir, centerX, centerY, width, height in handleInfo:
+            axisHandleLong = AxisHandleLong(self, name, axisDir, centerX,
+            centerY, width, height)
+            scene.addItem(axisHandleLong)
+            self.directionElements.append(axisHandleLong)
+
+        # Render the central square
+        centerSquare = QGraphicsRectItem(-25, -25, 50, 50)
+        scene.addItem(centerSquare)
+        self.directionElements.append(centerSquare)
+
+        # Render the text
+        pixelSize = 12
+        model = self.axisDirections.model
+        axisTexts = {
+        'Down': [None, 20+pixelSize/2, 30, 90],
+        'Up': [None, -20-pixelSize/2, -30, -90],
+        'Right': [None, 30, -20-pixelSize/2, 0],
+        'Left': [None, -30, 40-pixelSize/2, 180]
+        }
+        axisDirToRelationDir = {'Down': 1, 'Up': 2, 'Right': 3, 'Left': 4}
+        for key in axisTexts.keys():
+            for row in range(0, model.rowCount()):
+                if int(model.record(row).value(
+                'id').toString()) == self.axisAssignments[str(
+                axisDirToRelationDir[key])]:
+                    axisTexts[key][0] = str(model.record(row).value(
+                    'text').toString())
+
+        font = QFont('Arial', weight=75)
+        font.setPixelSize(pixelSize)
+        for key in axisTexts.keys():
+            text = self.sceneDirections.addText(axisTexts[key][0])
+            self.directionElements.append(text)
+            text.setTextWidth(100)
+            text.setFont(font)
+            text.setPos(axisTexts[key][1], axisTexts[key][2])
+            text.rotate(axisTexts[key][3])
 
     def setActiveNode(self, nodeID=1):
         # Set the active node and re-display the network accordingly
@@ -136,12 +243,18 @@ class Window(QMainWindow):
         self.activeNodeID = nodeID
 
         # Create destNodeID lists for each direction from the active node
-        self.activeLinks_dir1 = db.LinksDBModel(self.activeNodeID, dirs=[1])
+        self.activeLinks_dir1 = db.LinksDBModel(self.activeNodeID,
+        dirs=[self.axisAssignments['1']])
         self.destNodeIDs_dir1 = self.activeLinks_dir1.destNodeIDs()
-        self.activeLinks_dir2 = db.LinksDBModel(self.activeNodeID, dirs=[2])
+        self.activeLinks_dir2 = db.LinksDBModel(self.activeNodeID,
+        dirs=[self.axisAssignments['2']])
         self.destNodeIDs_dir2 = self.activeLinks_dir2.destNodeIDs()
-        self.activeLinks_dir3 = db.LinksDBModel(self.activeNodeID, dirs=[3])
+        self.activeLinks_dir3 = db.LinksDBModel(self.activeNodeID,
+        dirs=[self.axisAssignments['3']])
         self.destNodeIDs_dir3 = self.activeLinks_dir3.destNodeIDs()
+        self.activeLinks_dir4 = db.LinksDBModel(self.activeNodeID,
+        dirs=[self.axisAssignments['4']])
+        self.destNodeIDs_dir4 = self.activeLinks_dir4.destNodeIDs()
 
         # Remove the old network, refresh element list, and render everything
         self.removeImgSet(self.networkElements, self.sceneNetwork)
@@ -149,7 +262,7 @@ class Window(QMainWindow):
         self.renderNetwork(dirs=[1, 2, 3])
         self.renderNotes()
 
-    def renderNetwork(self, dirs=[1, 2, 3]):
+    def renderNetwork(self, dirs=[1, 2, 3, 4]):
         # Render the node network on the main view
 
         # Set network geometry
@@ -170,60 +283,66 @@ class Window(QMainWindow):
         )
         self.networkElements.append(self.activeNodeImg)
 
-        # Add relation node/link images into the scene for each direction
+        # Add relation node/link images into the scene for each axis direction
+        axisDirectionMultipliers = {'1': ['X', 0, 1], '2': ['X', 0, -1],
+        '3': ['Y', 1, 0], '4': ['Y', -1, 0]}
         self.activeLinkNodeImgs = {}
-        for dir in dirs:
-            # Add node images into the scene for this direction
-            linkNodeImgs_thisDir = []
-            destNodeIDs = eval('self.destNodeIDs_dir'+str(dir))
+        for axisDir in [1, 2, 3, 4]:
+            # Add node images into the scene for this axis direction
+            linkNodeImgs_thisAxisDir = []
+            destNodeIDs = eval('self.destNodeIDs_dir'+str(axisDir))
+            startLimitAxis, xSign, ySign = axisDirectionMultipliers[str(
+            axisDir)]
+
             for i in range(len(destNodeIDs)):
-                if dir == 1:
+                if startLimitAxis == 'X':
                     relationStartLimit = self.networkCenterX - \
                     self.nodeImgWidth*0.55*(len(destNodeIDs)-1)
-                    centerX = relationStartLimit+self.nodeImgWidth*1.1*i
-                    centerY = self.networkCenterY+self.relationOrbit
-                elif dir == 2:
-                    relationStartLimit = self.networkCenterX - \
-                    self.nodeImgWidth*0.55*(len(destNodeIDs)-1)
-                    centerX = relationStartLimit+self.nodeImgWidth*1.1*i
-                    centerY = self.networkCenterY-self.relationOrbit
-                elif dir == 3:
+                    centerX = relationStartLimit + self.nodeImgWidth*1.1*i
+                    centerY = self.networkCenterY + ySign*self.relationOrbit
+                elif startLimitAxis == 'Y':
                     relationStartLimit = self.networkCenterY - \
                     self.nodeImgHeight*0.55*(len(destNodeIDs)-1)
-                    centerX = self.networkCenterX+self.relationOrbit
-                    centerY = relationStartLimit+self.nodeImgHeight*1.1*i
+                    centerX = self.networkCenterX + xSign*self.relationOrbit
+                    centerY = relationStartLimit + self.nodeImgHeight*1.1*i
+
                 linkNodeImg = self.addNode(
-                    name='activeLinkNodeImg_dir'+str(dir)+'_'+str(i),
+                    name='activeLinkNodeImg_dir'+str(axisDir)+'_'+str(i),
                     nodeID=destNodeIDs[i],
                     scene=self.sceneNetwork,
-                    dir=dir,
+                    dir=axisDir,
                     centerX=centerX,
                     centerY=centerY,
                     width=self.nodeImgWidth,
                     height=self.nodeImgHeight,
                     textSize=self.nodeImgTextSize
                 )
-                linkNodeImgs_thisDir.append(linkNodeImg)
-                self.activeLinkNodeImgs.update({str(dir): linkNodeImgs_thisDir})
+                linkNodeImgs_thisAxisDir.append(linkNodeImg)
+                self.activeLinkNodeImgs.update(
+                {str(axisDir): linkNodeImgs_thisAxisDir})
                 self.networkElements.append(linkNodeImg)
 
             # Add link images into the scene for this direction
             self.activeLinkImgs = []
             for i in range(len(destNodeIDs)):
-                if dir == 1:
+                if axisDir == 1:
                     anchor1=self.activeNodeImg.bottomAnchor
-                    anchor2=self.activeLinkNodeImgs[str(dir)][i].topAnchor
-                elif dir == 2:
+                    anchor2=self.activeLinkNodeImgs[str(axisDir)][i].topAnchor
+                elif axisDir == 2:
                     anchor1=self.activeNodeImg.topAnchor
-                    anchor2=self.activeLinkNodeImgs[str(dir)][i].bottomAnchor
-                elif dir == 3:
+                    anchor2=self.activeLinkNodeImgs[str(
+                    axisDir)][i].bottomAnchor
+                elif axisDir == 3:
                     anchor1=self.activeNodeImg.rightAnchor
-                    anchor2=self.activeLinkNodeImgs[str(dir)][i].leftAnchor
+                    anchor2=self.activeLinkNodeImgs[str(axisDir)][i].leftAnchor
+                elif axisDir == 4:
+                    anchor1=self.activeNodeImg.leftAnchor
+                    anchor2=self.activeLinkNodeImgs[str(axisDir)][i].rightAnchor
                 linkImg = self.addLink(
                     scene=self.sceneNetwork,
                     nodeImg1=self.activeNodeImg,
                     anchor1=anchor1,
-                    nodeImg2=self.activeLinkNodeImgs[str(dir)][i],
+                    nodeImg2=self.activeLinkNodeImgs[str(axisDir)][i],
                     anchor2=anchor2
                 )
                 self.activeLinkImgs.append(linkImg)
