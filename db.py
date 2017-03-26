@@ -243,8 +243,27 @@ class Brain:
         confirm = QMessageBox.question(None, 'Confirm delete',
         'Delete this node?', QMessageBox.Yes, QMessageBox.No)
 
-        # Either call the delete methood or abort
+        # Either call the delete method or abort
         if confirm == QMessageBox.Yes:
+
+            # Define and execute query to determine whether notes item exists
+            model = QSqlQueryModel()
+            query = 'SELECT * FROM entrytoobject WHERE objectid=' + str(nodeID)
+            model.setQuery(query)
+            notesQueryTexts = []
+
+            if model.record(0).value('id').toString() != '':
+                # Delete any notes and linkers
+                noteLinkerID = int(model.record(0).value('id').toString())##########
+                noteID = int(model.record(0).value('entryid').toString())
+
+                # Define queries to delete notes and linkers if they exist
+                notesQueryTexts = [
+                "DELETE FROM entrytoobject WHERE id=" + str(noteLinkerID),
+                #
+                "DELETE FROM entries WHERE id=" + str(noteID)
+                ]
+
             # Define queries to delete node and links
             queryTexts = [
             "DELETE FROM links WHERE (ida=" + str(nodeID) + \
@@ -252,6 +271,8 @@ class Brain:
             #
             "DELETE FROM thoughts WHERE id=" + str(nodeID)
             ]
+            queryTexts.extend(notesQueryTexts)
+
             # Execute queries, then refresh the network view
             queries = self.querySet(queryTexts)
             self.window.setActiveNode(self.window.activeNodeID)
@@ -259,13 +280,80 @@ class Brain:
             print 'Canceled...'
 
     def saveNotes(self, notesText):
-        # Define queries to insert new relation node and links
-        queryTexts = [
-        "UPDATE entries SET body=N\'" + notesText +
-        "\' WHERE id=" + str(self.window.notesDBModel.notesID)
-        ]
-        # Execute queries, then refresh the network view
-        queries = self.querySet(queryTexts)
+
+        # Define and execute query to determine whether notes item exists
+        model = QSqlQueryModel()
+        query = 'SELECT * FROM entries WHERE id=' + \
+        str(self.window.notesDBModel.notesID)
+        model.setQuery(query)
+        timeDateStamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f'
+        )[:-3]
+        if model.record(0).value('id').toString() == '':
+            print 'No notes for this node. Creating notes.'
+
+            # Define and execute query to determine current max note serial
+            model = QSqlQueryModel()
+            query = 'SELECT * FROM entries WHERE id=(SELECT MAX(id) FROM \
+            entries)'
+            model.setQuery(query)
+            newEntrySerial = str(int(model.record(0).value('id').toString()) + \
+            1)
+
+            # Define/execute query to determine current max note-linker serial
+            model = QSqlQueryModel()
+            query = 'SELECT * FROM entrytoobject WHERE id=(SELECT MAX(id) FROM \
+            entrytoobject)'
+            model.setQuery(query)
+            newLinkSerial = str(int(model.record(0).value('id').toString()) + \
+            1)
+
+            GUID = uuid4()
+
+            """
+            # Create a blank html template
+            blankText = "N\'" + \
+            '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" \
+            "http://www.w3.org/TR/REC-html40/strict.dtd"><html><head>\
+            <meta name="qrichtext" content ="1" /><style type="text/css"> \
+            p, li { white space: pre-wrap; } </style></head>\
+            <body style=" font-family:"MS Shell Dlg 2"; font-size:8.25pt; \
+            font-weight:400; font-style:normal;">\
+            <p style="-qt-paragraph-type:empty; margin-top:0px; \
+            margin-bottom:0px; margin-left:0px; margin-right:0px; \
+            -qt-block-indent:0; text-indent:0px;"><br /></p></body></html>' + \
+            "\'"
+            """
+
+            # Define queries to insert new notes item and linker
+            queryTexts = [
+            "INSERT INTO entries (id, brainid, guid, body, bodyformat, \
+            creationdatetime, modificationdatetime, version, featured, \
+            blogthis) " + \
+            "VALUES (%s, %s, '%s', '%s', %s, '%s', '%s', %s, %s, %s)" \
+            % (newEntrySerial, 1, GUID, notesText, "\'HTML\'", \
+            timeDateStamp, timeDateStamp, 1, 1, 0),
+            #
+            "INSERT INTO entrytoobject (id, objecttype, objectid, entryid, \
+            brainid) " + \
+            "VALUES (%s, %s, %s, %s, %s)" % (newLinkSerial, 0, \
+            self.window.activeNodeID, newEntrySerial, 1)
+            ]
+
+            # Execute queries, then refresh the notes view
+            queries = self.querySet(queryTexts)
+            self.window.renderNotes()
+        else:
+            # Define queries to update notes text
+            queryTexts = [
+            "UPDATE entries SET body=N\'" + notesText +
+            "\' WHERE id=" + str(self.window.notesDBModel.notesID),
+            #
+            "UPDATE entries SET modificationdatetime=N\'" + timeDateStamp +
+            "\' WHERE id=" + str(self.window.notesDBModel.notesID)
+            ]
+
+            # Execute queries
+            queries = self.querySet(queryTexts)
 
 
 class AxisDirectionsDBModel:

@@ -13,8 +13,9 @@ import math
 import grav.db as db
 from grav.nodeImg import NodeImg
 from grav.axes import(AxisHandleLong, AxisHandlePole)
+from grav.textEdit import TextEdit
 from grav.htmlParse import htmlParse
-from PyQt4.QtCore import(Qt, QSignalMapper)
+from PyQt4.QtCore import(Qt, QSignalMapper, QPointF)
 from PyQt4.QtGui import(QIcon, QMainWindow, QApplication, QWidget, QPushButton,
 QDesktopWidget, QMessageBox, QAction, qApp, QHBoxLayout, QVBoxLayout, QLineEdit,
 QTextEdit, QPen, QFont, QGraphicsView, QGraphicsScene, QGraphicsItem, QMenu,
@@ -66,10 +67,12 @@ class Window(QMainWindow):
 
         # Create the network scene, view and element list for later deletion
         self.sceneNetwork = QGraphicsScene()
+        #self.sceneNetwork.setSceneRect(0, 0, 800, 600)
         self.view = QGraphicsView(self.sceneNetwork)
+        self.view.setMinimumWidth(800)
+        self.view.setMinimumHeight(600)
         self.networkElements = []
         self.directionElements = []
-        #self.sceneNetwork.setSceneRect(0, 0, 1000, 1000)
 
         # Create the pin scene/view
         self.scenePins = QGraphicsScene()
@@ -78,14 +81,6 @@ class Window(QMainWindow):
         # Create the history scene/view
         self.sceneHistory = QGraphicsScene()
         self.viewHistory = QGraphicsView(self.sceneHistory)
-
-        # Create the notes pane
-        notesBox = QVBoxLayout()
-        self.textEdit = QTextEdit()
-        self.saveNotesButton = QPushButton('Save notes')
-        self.saveNotesButton.clicked.connect(self.saveNotes)
-        notesBox.addWidget(self.saveNotesButton)
-        notesBox.addWidget(self.textEdit)
 
         # Create the direction table portal and direction-add/remove buttons
         self.tableDirections = QTableView()
@@ -143,7 +138,8 @@ class Window(QMainWindow):
         viewPane.addWidget(self.viewHistory)
         # Network/notes pane
         hbox = QHBoxLayout()
-        hbox.addLayout(notesBox)
+        self.notesEditor = TextEdit(self)
+        hbox.addWidget(self.notesEditor)
         hbox.addLayout(viewPane)
         # Network/notes/attribute pane
         vbox = QVBoxLayout()
@@ -215,7 +211,7 @@ class Window(QMainWindow):
         'Down': [None, 20+pixelSize/2, 30, 90],
         'Up': [None, -20-pixelSize/2, -30, -90],
         'Right': [None, 30, -20-pixelSize/2, 0],
-        'Left': [None, -30, 40-pixelSize/2, 180]
+        'Left': [None, -30, 35-pixelSize/2, 180]
         }
         axisDirToRelationDir = {'Down': 1, 'Up': 2, 'Right': 3, 'Left': 4}
         for key in axisTexts.keys():
@@ -267,8 +263,8 @@ class Window(QMainWindow):
 
         # Set network geometry
         self.networkCenterX = 500
-        self.networkCenterY = 400
-        self.relationOrbit = 300
+        self.networkCenterY = 500
+        self.relationOrbit = 200
 
         # Add active node image into the scene
         self.activeNodeImg = self.addNode(
@@ -351,14 +347,13 @@ class Window(QMainWindow):
     def renderNotes(self):
         # Render the notes for the active node
         self.notesDBModel = db.NotesDBModel(self, self.activeNodeID)
-        self.textEdit.setText(
+        self.notesEditor.text.setText(
             self.notesDBModel.modelNotes.record(0).value('body').toString()
         )
 
     def saveNotes(self):
         # Save the notes for the active node
-        notesText = htmlParse(self.textEdit.toHtml())
-        #notesText = self.textEdit.toHtml()
+        notesText = htmlParse(self.notesEditor.text.toHtml())
         self.brain.saveNotes(notesText)
         self.renderNotes()
 
