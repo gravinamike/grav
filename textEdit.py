@@ -287,7 +287,7 @@ class TextEdit(QtGui.QMainWindow):
 
     def initUI(self):
 
-        self.text = QtGui.QTextEdit(self)
+        self.text = QtGui.QTextBrowser(self)
 
         # Set the tab stop width to around 33 pixels which is
         # more or less 8 spaces

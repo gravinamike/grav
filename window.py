@@ -2,10 +2,11 @@
 #File: window.py
 
 """
-DESCRIPTION GOES HERE
+This is the main script for Seahorse which instantiates a window allowing you
+to display and edit a multidimensional network of nodes.
 
 author: Mike Gravina
-last edited: December 2016
+last edited: April 2017
 """
 
 import sys
@@ -15,7 +16,7 @@ from grav.nodeImg import NodeImg
 from grav.axes import(AxisHandleLong, AxisHandlePole)
 from grav.textEdit import TextEdit
 from grav.htmlParse import htmlParse
-from PyQt4.QtCore import(Qt, QSignalMapper, QPointF)
+from PyQt4.QtCore import(Qt, QSignalMapper, QPointF, QTimer)
 from PyQt4.QtGui import(QIcon, QMainWindow, QApplication, QWidget, QPushButton,
 QDesktopWidget, QMessageBox, QAction, qApp, QHBoxLayout, QVBoxLayout, QLineEdit,
 QTextEdit, QPen, QFont, QGraphicsView, QGraphicsScene, QGraphicsItem, QMenu,
@@ -47,7 +48,7 @@ class Window(QMainWindow):
         self.resize(2000, 1500)
         self.center()
         self.setWindowTitle('The Bridge')
-        self.setWindowIcon(QIcon('web.png'))
+        self.setWindowIcon(QIcon('seahorse.png'))
         # Set up actions associated with window
         exitAction = QAction(QIcon('exit.png'), '&Exit', self)
         exitAction.setShortcut('Ctrl+Q')
@@ -139,6 +140,7 @@ class Window(QMainWindow):
         # Network/notes pane
         hbox = QHBoxLayout()
         self.notesEditor = TextEdit(self)
+        self.notesEditor.text.textChanged.connect(self.markNotesChanges)
         hbox.addWidget(self.notesEditor)
         hbox.addLayout(viewPane)
         # Network/notes/attribute pane
@@ -238,111 +240,177 @@ class Window(QMainWindow):
         # Reassign active node ID
         self.activeNodeID = nodeID
 
-        # Create destNodeID lists for each direction from the active node
-        self.activeLinks_dir1 = db.LinksDBModel(self.activeNodeID,
-        dirs=[self.axisAssignments['1']])
-        self.destNodeIDs_dir1 = self.activeLinks_dir1.destNodeIDs()
-        self.activeLinks_dir2 = db.LinksDBModel(self.activeNodeID,
-        dirs=[self.axisAssignments['2']])
-        self.destNodeIDs_dir2 = self.activeLinks_dir2.destNodeIDs()
-        self.activeLinks_dir3 = db.LinksDBModel(self.activeNodeID,
-        dirs=[self.axisAssignments['3']])
-        self.destNodeIDs_dir3 = self.activeLinks_dir3.destNodeIDs()
-        self.activeLinks_dir4 = db.LinksDBModel(self.activeNodeID,
-        dirs=[self.axisAssignments['4']])
-        self.destNodeIDs_dir4 = self.activeLinks_dir4.destNodeIDs()
-
         # Remove the old network, refresh element list, and render everything
         self.removeImgSet(self.networkElements, self.sceneNetwork)
         self.networkElements = []
-        self.renderNetwork(dirs=[1, 2, 3])
+        self.renderNetwork(dirs=[1, 2, 3, 4])
         self.renderNotes()
 
     def renderNetwork(self, dirs=[1, 2, 3, 4]):
         # Render the node network on the main view
 
-        # Set network geometry
-        self.networkCenterX = 500
-        self.networkCenterY = 500
-        self.relationOrbit = 200
+        centerList = [[500, 500]]
+        nodeList = [None]
+        ringCount = 3
+        self.activeLinkNodeIDs = []
+        self.activeLinkNodeImgs = []
 
-        # Add active node image into the scene
-        self.activeNodeImg = self.addNode(
-            name='activeNodeImg',
-            nodeID=self.activeNodeID,
-            scene=self.sceneNetwork,
-            centerX=self.networkCenterX,
-            centerY=self.networkCenterY,
-            width=self.nodeImgWidth,
-            height=self.nodeImgHeight,
-            textSize=self.nodeImgTextSize
-        )
-        self.networkElements.append(self.activeNodeImg)
+        for ring in range(0, ringCount):
+
+            nextCenterList = []
+            nextNodeList = []
+
+            length = len(centerList)
+            for i in range(0, length):
+                centerCoords = centerList[i]
+                centerNode = nodeList[i]
+                newCenters, newNodeIDs, nodeImgs = self.renderOneRing(
+                centerCoords, centerNode, ring)
+                nextCenterList.extend(newCenters)
+                nextNodeList.extend(nodeImgs)
+
+            centerList = nextCenterList
+            nodeList = nextNodeList
+
+    # Render a single ring of relations around a central node
+    def renderOneRing(self, centerCoords, focusNodeImg, ring):
+
+        if ring == 0:
+            focusNodeID = self.activeNodeID
+        else:
+            focusNodeID = focusNodeImg.nodeID
+
+        # Create destNodeID lists for each direction from the active node
+        destNodeIDs_dir0 = [focusNodeID]
+
+        activeLinks_dir1 = db.LinksDBModel(focusNodeID,
+        dirs=[self.axisAssignments['1']])
+        destNodeIDs_dir1 = activeLinks_dir1.destNodeIDs()
+
+        activeLinks_dir2 = db.LinksDBModel(focusNodeID,
+        dirs=[self.axisAssignments['2']])
+        destNodeIDs_dir2 = activeLinks_dir2.destNodeIDs()
+
+        activeLinks_dir3 = db.LinksDBModel(focusNodeID,
+        dirs=[self.axisAssignments['3']])
+        destNodeIDs_dir3 = activeLinks_dir3.destNodeIDs()
+
+        activeLinks_dir4 = db.LinksDBModel(focusNodeID,
+        dirs=[self.axisAssignments['4']])
+        destNodeIDs_dir4 = activeLinks_dir4.destNodeIDs()
+
+        # Set network geometry
+        networkCenterX = centerCoords[0]
+        networkCenterY = centerCoords[1]
+        relationOrbit = 200
 
         # Add relation node/link images into the scene for each axis direction
-        axisDirectionMultipliers = {'1': ['X', 0, 1], '2': ['X', 0, -1],
-        '3': ['Y', 1, 0], '4': ['Y', -1, 0]}
-        self.activeLinkNodeImgs = {}
-        for axisDir in [1, 2, 3, 4]:
+        axisDirectionMultipliers = {'0': ['X', 0, 0], '1': ['X', 0, 1],
+        '2': ['X', 0, -1], '3': ['Y', 1, 0], '4': ['Y', -1, 0]}
+        ringLinkNodeIDs = []
+        activeLinkNodeCenters = []
+        ringLinkNodeImgs = {}
+        linkNodeImgs_all = []
+
+        if ring == 0:
+            axisDirSet = [0]
+        else:
+            axisDirSet = [1, 2, 3, 4]
+
+        for axisDir in axisDirSet:
             # Add node images into the scene for this axis direction
             linkNodeImgs_thisAxisDir = []
-            destNodeIDs = eval('self.destNodeIDs_dir'+str(axisDir))
+            destNodeIDs = eval('destNodeIDs_dir'+str(axisDir))
             startLimitAxis, xSign, ySign = axisDirectionMultipliers[str(
             axisDir)]
 
             for i in range(len(destNodeIDs)):
                 if startLimitAxis == 'X':
-                    relationStartLimit = self.networkCenterX - \
+                    relationStartLimit = networkCenterX - \
                     self.nodeImgWidth*0.55*(len(destNodeIDs)-1)
                     centerX = relationStartLimit + self.nodeImgWidth*1.1*i
-                    centerY = self.networkCenterY + ySign*self.relationOrbit
+                    centerY = networkCenterY + ySign*relationOrbit
                 elif startLimitAxis == 'Y':
-                    relationStartLimit = self.networkCenterY - \
+                    relationStartLimit = networkCenterY - \
                     self.nodeImgHeight*0.55*(len(destNodeIDs)-1)
-                    centerX = self.networkCenterX + xSign*self.relationOrbit
+                    centerX = networkCenterX + xSign*relationOrbit
                     centerY = relationStartLimit + self.nodeImgHeight*1.1*i
 
-                linkNodeImg = self.addNode(
-                    name='activeLinkNodeImg_dir'+str(axisDir)+'_'+str(i),
-                    nodeID=destNodeIDs[i],
-                    scene=self.sceneNetwork,
-                    dir=axisDir,
-                    centerX=centerX,
-                    centerY=centerY,
-                    width=self.nodeImgWidth,
-                    height=self.nodeImgHeight,
-                    textSize=self.nodeImgTextSize
-                )
-                linkNodeImgs_thisAxisDir.append(linkNodeImg)
-                self.activeLinkNodeImgs.update(
-                {str(axisDir): linkNodeImgs_thisAxisDir})
-                self.networkElements.append(linkNodeImg)
+                if int(destNodeIDs[i]) in self.activeLinkNodeIDs:########################################### REORDER ALTERNATIVES AND LABEL THEM.
+                    pass
+                else:
+                    linkNodeImg = self.addNode(
+                        name='activeLinkNodeImg_ring'+str(ring)+'_dir'+\
+                        str(axisDir)+'_'+str(i),
+                        nodeID=destNodeIDs[i],
+                        scene=self.sceneNetwork,
+                        dir=axisDir,
+                        centerX=centerX,
+                        centerY=centerY,
+                        width=self.nodeImgWidth,
+                        height=self.nodeImgHeight,
+                        textSize=self.nodeImgTextSize
+                    )
+                    linkNodeImgs_all.append(linkNodeImg)
+                    linkNodeImgs_thisAxisDir.append(linkNodeImg)
+                    ringLinkNodeImgs.update(
+                    {str(axisDir): linkNodeImgs_thisAxisDir})
+                    self.networkElements.append(linkNodeImg)
+                    activeLinkNodeCenters.append([centerX, centerY])
+                    ringLinkNodeIDs.append(destNodeIDs[i])
+                    self.activeLinkNodeIDs.append(int(destNodeIDs[i]))
+                    self.activeLinkNodeImgs.append(linkNodeImg)#######################
 
-            # Add link images into the scene for this direction
-            self.activeLinkImgs = []
-            for i in range(len(destNodeIDs)):
-                if axisDir == 1:
-                    anchor1=self.activeNodeImg.bottomAnchor
-                    anchor2=self.activeLinkNodeImgs[str(axisDir)][i].topAnchor
-                elif axisDir == 2:
-                    anchor1=self.activeNodeImg.topAnchor
-                    anchor2=self.activeLinkNodeImgs[str(
-                    axisDir)][i].bottomAnchor
-                elif axisDir == 3:
-                    anchor1=self.activeNodeImg.rightAnchor
-                    anchor2=self.activeLinkNodeImgs[str(axisDir)][i].leftAnchor
-                elif axisDir == 4:
-                    anchor1=self.activeNodeImg.leftAnchor
-                    anchor2=self.activeLinkNodeImgs[str(axisDir)][i].rightAnchor
-                linkImg = self.addLink(
-                    scene=self.sceneNetwork,
-                    nodeImg1=self.activeNodeImg,
-                    anchor1=anchor1,
-                    nodeImg2=self.activeLinkNodeImgs[str(axisDir)][i],
-                    anchor2=anchor2
-                )
-                self.activeLinkImgs.append(linkImg)
-                self.networkElements.append(linkImg)
+            # Add link images into the scene for this direction ############################## THIS NEEDS TO LINK TO THE *OLD* NODE *IF* IT EXISTS.
+            activeLinkImgs = []
+            if focusNodeImg != None:
+                for i in range(len(destNodeIDs)):
+                    if int(destNodeIDs[i]) in self.activeLinkNodeIDs:########################################### COMPRESS THE BELOW (IT REPEATS self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))])
+                        if axisDir == 1:
+                            anchor1=focusNodeImg.bottomAnchor
+                            anchor2=self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))].topAnchor
+                        elif axisDir == 2:
+                            anchor1=focusNodeImg.topAnchor
+                            anchor2=self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))].bottomAnchor
+                        elif axisDir == 3:
+                            anchor1=focusNodeImg.rightAnchor
+                            anchor2=self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))].leftAnchor
+                        elif axisDir == 4:
+                            anchor1=focusNodeImg.leftAnchor
+                            anchor2=self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))].rightAnchor
+                        linkImg = self.addLink(
+                            scene=self.sceneNetwork,
+                            nodeImg1=focusNodeImg,
+                            anchor1=anchor1,
+                            nodeImg2=self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))],############################ HERE
+                            anchor2=anchor2
+                        )
+                        activeLinkImgs.append(linkImg)
+                        self.networkElements.append(linkImg)
+                    else:
+                        if axisDir == 1:
+                            anchor1=focusNodeImg.bottomAnchor
+                            anchor2=ringLinkNodeImgs[str(axisDir)][i].topAnchor
+                        elif axisDir == 2:
+                            anchor1=focusNodeImg.topAnchor
+                            anchor2=ringLinkNodeImgs[str(axisDir)][i].bottomAnchor
+                        elif axisDir == 3:
+                            anchor1=focusNodeImg.rightAnchor
+                            anchor2=ringLinkNodeImgs[str(axisDir)][i].leftAnchor
+                        elif axisDir == 4:
+                            anchor1=focusNodeImg.leftAnchor
+                            anchor2=ringLinkNodeImgs[str(axisDir)][i].rightAnchor
+                        linkImg = self.addLink(
+                            scene=self.sceneNetwork,
+                            nodeImg1=focusNodeImg,
+                            anchor1=anchor1,
+                            nodeImg2=ringLinkNodeImgs[str(axisDir)][i],
+                            anchor2=anchor2
+                        )
+                        activeLinkImgs.append(linkImg)
+                        self.networkElements.append(linkImg)
+
+        return activeLinkNodeCenters, ringLinkNodeIDs, linkNodeImgs_all
 
     def renderNotes(self):
         # Render the notes for the active node
@@ -350,12 +418,22 @@ class Window(QMainWindow):
         self.notesEditor.text.setText(
             self.notesDBModel.modelNotes.record(0).value('body').toString()
         )
+        # Set up the auto-save timer
+        self.notesTimer = QTimer()
+        self.notesTimer.timeout.connect(self.saveNotes)
+        self.notesChangedFlag = False
+        self.notesTimer.start(10000)
+
+    def markNotesChanges(self):
+        # Make a note that the current notes have been edited
+        self.notesChangedFlag = True
 
     def saveNotes(self):
         # Save the notes for the active node
-        notesText = htmlParse(self.notesEditor.text.toHtml())
-        self.brain.saveNotes(notesText)
-        self.renderNotes()
+        if self.notesChangedFlag == True:
+            notesText = htmlParse(self.notesEditor.text.toHtml())
+            self.brain.saveNotes(notesText)
+            self.renderNotes()
 
     def renderPins(self):
         # Add the pin node images into the scene
@@ -427,7 +505,10 @@ class Window(QMainWindow):
         # Initialize the anchor graphics and set as children of node graphics
         for anchor in node.anchors:
             scene.addItem(anchor)
-            anchor.setFlags(QGraphicsItem.ItemIsSelectable)
+            anchor.setFlags(
+                QGraphicsItem.ItemIsSelectable |
+                QGraphicsItem.ItemIsMovable|
+                QGraphicsItem.ItemSendsScenePositionChanges)
             anchor.setParentItem(node)
 
         # Add text and set it as child of the node graphic
@@ -459,9 +540,9 @@ class Window(QMainWindow):
 
         # Add lines to the node image's list of lines
         nodeImg1.addLine(linkImg, nodeImg1.name+"-"+nodeImg2.name, 'p1',
-            nodeImg1.dir)
+            anchor1.dir)
         nodeImg2.addLine(linkImg, nodeImg1.name+"-"+nodeImg2.name, 'p2',
-            nodeImg2.dir)
+            anchor2.dir)
 
         # Return pointer for the link
         return linkImg
@@ -502,7 +583,9 @@ class Window(QMainWindow):
             event.ignore()
 
     def exitCleanup(self):
-        # Final cleanup if window is closed, including shutting down the db
+        # Final cleanup if window is closed, including saving notes and shutting
+        # down the db
+        self.saveNotes()
         self.brain.h2.kill()
         print "Database killed!"
 

@@ -254,7 +254,7 @@ class Brain:
 
             if model.record(0).value('id').toString() != '':
                 # Delete any notes and linkers
-                noteLinkerID = int(model.record(0).value('id').toString())##########
+                noteLinkerID = int(model.record(0).value('id').toString())
                 noteID = int(model.record(0).value('entryid').toString())
 
                 # Define queries to delete notes and linkers if they exist
@@ -272,6 +272,83 @@ class Brain:
             "DELETE FROM thoughts WHERE id=" + str(nodeID)
             ]
             queryTexts.extend(notesQueryTexts)
+
+            # Execute queries, then refresh the network view
+            queries = self.querySet(queryTexts)
+            self.window.setActiveNode(self.window.activeNodeID)
+        else:
+            print 'Canceled...'
+
+    def createRelationship(self, sourceNodeID, sourceDir, destNodeID,
+        destDir, sidedness):
+        # Create a relationship link from one node to another
+
+        # If method would link a node to itself, display error and return
+        if sourceNodeID == destNodeID:
+            message = QMessageBox.critical(None, 'Error',
+            'Can\'t relate a Thing to itself!')
+            return
+
+        # Determine the opposite direction from the relation direction
+        model = QSqlQueryModel()
+        query = 'SELECT * FROM directions WHERE id=(' + str(sourceDir) + ')'
+        model.setQuery(query)
+        theBrainDirSource = int(model.record(0).value('thebraindir'\
+        ).toString())
+        sourceDirOpposite = int(model.record(0).value('opposite').toString())
+
+        # If method would create paired relationships which are not opposites
+        # of one another, display error and return
+        if destDir != sourceDirOpposite:
+            #message = QMessageBox.critical(None, 'Error',
+            #'You can\'t relate two Things with relationship types that are \
+            #not opposites!')
+            return
+
+        # Display input box querying to continue or not
+        confirm = QMessageBox.question(None, 'Create relationship?',
+        'Create relationship?', QMessageBox.Yes, QMessageBox.No)
+
+        # Either call the delete method or abort
+        if confirm == QMessageBox.Yes:
+            # Get a new GUIDs and date/timestamp
+            GUID0, GUID1 = uuid4(), uuid4()
+            timeDateStamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f'\
+            )[:-3]
+
+            # Define and execute query to determine current max link serial
+            model = QSqlQueryModel()
+            query = 'SELECT * FROM links WHERE id=(SELECT MAX(id) FROM links)'
+            model.setQuery(query)
+            linkSerial1 = str(int(model.record(0).value('id').toString()) + 1)
+            linkSerial2 = str(int(model.record(0).value('id').toString()) + 2)
+
+            # Determine the TheBrain classic direction numbers from the relation
+            # direction
+            model = QSqlQueryModel()
+            query = 'SELECT * FROM directions WHERE id=(' + str(sourceDir) + ')'
+            model.setQuery(query)
+            theBrainDirSource = int(model.record(0).value('thebraindir'\
+            ).toString())
+
+            model = QSqlQueryModel()
+            query = 'SELECT * FROM directions WHERE id=(' + str(destDir) + ')'
+            model.setQuery(query)
+            theBrainDirDest = int(model.record(0).value('thebraindir'\
+            ).toString())
+
+            # Define queries to insert new relationship links
+            queryTexts = [
+            "INSERT INTO links (id, brainid, guid, ida, idb, " +
+            "creationdatetime, dir, direction) VALUES (%s, %s, '%s', %s, %s, \
+            '%s', %s, %s)" % (linkSerial1, 1, GUID0, sourceNodeID, destNodeID, \
+            timeDateStamp, theBrainDirSource, sourceDir),
+            #
+            "INSERT INTO links (id, brainid, guid, ida, idb, " +
+            "creationdatetime, dir, direction) VALUES (%s, %s, '%s', %s, %s, \
+            '%s', %s, %s)" % (linkSerial2, 1, GUID1, destNodeID, sourceNodeID, \
+            timeDateStamp, theBrainDirDest, destDir)
+            ]
 
             # Execute queries, then refresh the network view
             queries = self.querySet(queryTexts)
