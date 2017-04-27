@@ -12,19 +12,12 @@ last edited: April 2017
 import sys
 import math
 import grav.db as db
-from grav.nodeImg import NodeImg
-from grav.axes import(AxisHandleLong, AxisHandlePole)
-from grav.textEdit import TextEdit
-from grav.htmlParse import htmlParse
-from PyQt4.QtCore import(Qt, QSignalMapper, QPointF, QTimer)
-from PyQt4.QtGui import(QIcon, QMainWindow, QApplication, QWidget, QPushButton,
-QDesktopWidget, QMessageBox, QAction, qApp, QHBoxLayout, QVBoxLayout, QLineEdit,
-QTextEdit, QPen, QFont, QGraphicsView, QGraphicsScene, QGraphicsItem, QMenu,
-QGraphicsRectItem, QTableView)
+from grav import axes, htmlParse, nodeImg, textEdit
+from PyQt4 import QtCore, QtGui
 
 
-class Window(QMainWindow):
-    # Implements a window widget displaying nodes in the database
+class Window(QtGui.QMainWindow):
+    # Implements the Seahorse main window
 
     def __init__(self):
         # Initialization from superclass and call to class constructor
@@ -35,9 +28,13 @@ class Window(QMainWindow):
         self.activeNodeID = 30
         self.pinNodeIDs = []
         self.historyNodeIDs = []
-        # Set relationship directions to each view axis
+        # Set relationship directions to each view axis, and their opposites
         self.axisDirections = db.AxisDirectionsDBModel(1, 2, 3, 4)
         self.axisAssignments = {'1': 1, '2': 2, '3': 3, '4': 4}
+        self.axisAssignmentOpposites = {}
+        self.getAxisAssignmentOpposites()
+        # Set dictionary of linkIDs and their opposite linkIDs
+        self.oppositeLinkIDs = {}
         # Initialize the window user interface
         self.initUI()
 
@@ -47,13 +44,13 @@ class Window(QMainWindow):
         # Set basic config of window
         self.resize(2000, 1500)
         self.center()
-        self.setWindowTitle('The Bridge')
-        self.setWindowIcon(QIcon('seahorse.png'))
+        self.setWindowTitle('Seahorse')
+        self.setWindowIcon(QtGui.QIcon('seahorse.png'))
         # Set up actions associated with window
-        exitAction = QAction(QIcon('exit.png'), '&Exit', self)
+        exitAction = QtGui.QAction(QtGui.QIcon('exit.png'), '&Exit', self)
         exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
-        exitAction.triggered.connect(qApp.quit)
+        exitAction.triggered.connect(QtGui.qApp.quit)
         # Set up window bars (menu, tool, status)
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
@@ -67,60 +64,62 @@ class Window(QMainWindow):
         self.nodeImgTextSize = 12
 
         # Create the network scene, view and element list for later deletion
-        self.sceneNetwork = QGraphicsScene()
+        self.sceneNetwork = QtGui.QGraphicsScene()
         #self.sceneNetwork.setSceneRect(0, 0, 800, 600)
-        self.view = QGraphicsView(self.sceneNetwork)
+        self.view = QtGui.QGraphicsView(self.sceneNetwork)
         self.view.setMinimumWidth(800)
         self.view.setMinimumHeight(600)
         self.networkElements = []
         self.directionElements = []
 
         # Create the pin scene/view
-        self.scenePins = QGraphicsScene()
-        self.viewPins = QGraphicsView(self.scenePins)
+        self.scenePins = QtGui.QGraphicsScene()
+        self.viewPins = QtGui.QGraphicsView(self.scenePins)
 
         # Create the history scene/view
-        self.sceneHistory = QGraphicsScene()
-        self.viewHistory = QGraphicsView(self.sceneHistory)
+        self.sceneHistory = QtGui.QGraphicsScene()
+        self.viewHistory = QtGui.QGraphicsView(self.sceneHistory)
 
         # Create the direction table portal and direction-add/remove buttons
-        self.tableDirections = QTableView()
+        self.tableDirections = QtGui.QTableView()
         self.tableDirections.setModel(self.brain.modelDirections)
         #self.tableDirections.setColumnHidden(0, True)
         self.tableDirections.setColumnWidth(1, 170)
         self.tableDirections.setColumnWidth(2, 170)
         self.tableDirections.setColumnWidth(3, 170)
 
-        self.buttonAddDir = QPushButton('Add direction')
+        self.buttonAddDir = QtGui.QPushButton('Add direction')
         self.buttonAddDir.clicked.connect(self.brain.createDirection)
-        self.buttonDelDir = QPushButton('Delete direction')
+        self.buttonDelDir = QtGui.QPushButton('Delete direction')
         self.buttonDelDir.clicked.connect(self.brain.deleteDirection)
 
-        self.directionsBox = QVBoxLayout()
+        self.directionsBox = QtGui.QVBoxLayout()
         self.directionsBox.addWidget(self.tableDirections)
         self.directionsBox.addWidget(self.buttonAddDir)
         self.directionsBox.addWidget(self.buttonDelDir)
 
         # Create the axis-direction-setting view
-        self.sceneDirections = QGraphicsScene()
+        self.sceneDirections = QtGui.QGraphicsScene()
         self.sceneDirections.setSceneRect(-200, -200, 400, 400)
-        self.viewDirections = QGraphicsView(self.sceneDirections)
+        self.viewDirections = QtGui.QGraphicsView(self.sceneDirections)
         self.viewDirections.setFixedSize(400, 400)
-        self.viewDirections.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.viewDirections.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.viewDirections.setHorizontalScrollBarPolicy(
+        QtCore.Qt.ScrollBarAlwaysOff)
+        self.viewDirections.setVerticalScrollBarPolicy(
+        QtCore.Qt.ScrollBarAlwaysOff)
 
         # Create the node attribute pane
-        attribBox = QHBoxLayout()
-        lineEdit3 = QLineEdit()
+        attribBox = QtGui.QHBoxLayout()
+        lineEdit3 = QtGui.QLineEdit()
 
-        self.biggerButton = QPushButton('Bigger')
-        self.biggerButtonMapper = QSignalMapper()
+        self.biggerButton = QtGui.QPushButton('Bigger')
+        self.biggerButtonMapper = QtCore.QSignalMapper()
         self.biggerButton.clicked.connect(self.biggerButtonMapper.map)
         self.biggerButtonMapper.setMapping(self.biggerButton, 1)
         self.biggerButtonMapper.mapped.connect(self.updateNodeImgSize)
 
-        self.smallerButton = QPushButton('Smaller')
-        self.smallerButtonMapper = QSignalMapper()
+        self.smallerButton = QtGui.QPushButton('Smaller')
+        self.smallerButtonMapper = QtCore.QSignalMapper()
         self.smallerButton.clicked.connect(self.smallerButtonMapper.map)
         self.smallerButtonMapper.setMapping(self.smallerButton, -1)
         self.smallerButtonMapper.mapped.connect(self.updateNodeImgSize)
@@ -133,22 +132,22 @@ class Window(QMainWindow):
 
         # Set main-widget box/stretch layout using the above views
         # Network pane
-        viewPane = QVBoxLayout()
+        viewPane = QtGui.QVBoxLayout()
         viewPane.addWidget(self.viewPins)
         viewPane.addWidget(self.view)
         viewPane.addWidget(self.viewHistory)
         # Network/notes pane
-        hbox = QHBoxLayout()
-        self.notesEditor = TextEdit(self)
+        hbox = QtGui.QHBoxLayout()
+        self.notesEditor = textEdit.TextEdit(self)
         self.notesEditor.text.textChanged.connect(self.markNotesChanges)
         hbox.addWidget(self.notesEditor)
         hbox.addLayout(viewPane)
         # Network/notes/attribute pane
-        vbox = QVBoxLayout()
+        vbox = QtGui.QVBoxLayout()
         vbox.addLayout(hbox)
         vbox.addLayout(attribBox)
         # Encapsulating widget
-        stretchBox = QWidget()
+        stretchBox = QtGui.QWidget()
         stretchBox.setLayout(vbox)
         self.setCentralWidget(stretchBox)
 
@@ -164,6 +163,7 @@ class Window(QMainWindow):
 
     def assignAxis(self, axisDir, assignedDir):
         self.axisAssignments[str(axisDir)] = assignedDir
+        self.getAxisAssignmentOpposites()
         self.renderDirections(self.sceneDirections)
         self.setActiveNode(self.activeNodeID)
 
@@ -171,8 +171,19 @@ class Window(QMainWindow):
         self.axisAssignments[str(axisDir)] = assignedDir
         axisOppositeDirs = {'1': 2, '2': 1, '3': 4, '4': 3}
         self.axisAssignments[str(axisOppositeDirs[str(axisDir)])] = oppositeDir
+        self.getAxisAssignmentOpposites()
         self.renderDirections(self.sceneDirections)
         self.setActiveNode(self.activeNodeID)
+
+    def getAxisAssignmentOpposites(self):
+        self.axisAssignmentOpposites = {}
+        model = self.axisDirections.model
+        for row in range(0, model.rowCount()):
+            for direction in list(set(self.axisAssignments.values())):
+                if int(model.record(row).value('id').toString()) == direction:
+                    opposite = int(
+                    model.record(row).value('opposite').toString())
+                    self.axisAssignmentOpposites.update({direction: opposite})
 
     def renderDirections(self, scene):
         # Render the directions-selection dummy axes
@@ -186,7 +197,7 @@ class Window(QMainWindow):
         ['4', 4, -150, 0]]
 
         for name, axisDir, centerX, centerY in handleInfo:
-            axisHandlePole = AxisHandlePole(self, name, axisDir, centerX,
+            axisHandlePole = axes.AxisHandlePole(self, name, axisDir, centerX,
             centerY, 50, 50)
             scene.addItem(axisHandlePole)
             self.directionElements.append(axisHandlePole)
@@ -196,13 +207,13 @@ class Window(QMainWindow):
         ['3-4', 3, 75, 0, 100, 10], ['4-3', 4, -75, 0, 100, 10]]
 
         for name, axisDir, centerX, centerY, width, height in handleInfo:
-            axisHandleLong = AxisHandleLong(self, name, axisDir, centerX,
+            axisHandleLong = axes.AxisHandleLong(self, name, axisDir, centerX,
             centerY, width, height)
             scene.addItem(axisHandleLong)
             self.directionElements.append(axisHandleLong)
 
         # Render the central square
-        centerSquare = QGraphicsRectItem(-25, -25, 50, 50)
+        centerSquare = QtGui.QGraphicsRectItem(-25, -25, 50, 50)
         scene.addItem(centerSquare)
         self.directionElements.append(centerSquare)
 
@@ -224,7 +235,7 @@ class Window(QMainWindow):
                     axisTexts[key][0] = str(model.record(row).value(
                     'text').toString())
 
-        font = QFont('Arial', weight=75)
+        font = QtGui.QFont('Arial', weight=75)
         font.setPixelSize(pixelSize)
         for key in axisTexts.keys():
             text = self.sceneDirections.addText(axisTexts[key][0])
@@ -254,6 +265,7 @@ class Window(QMainWindow):
         ringCount = 3
         self.activeLinkNodeIDs = []
         self.activeLinkNodeImgs = []
+        self.oppositeLinkIDs = {}
 
         for ring in range(0, ringCount):
 
@@ -280,24 +292,30 @@ class Window(QMainWindow):
         else:
             focusNodeID = focusNodeImg.nodeID
 
-        # Create destNodeID lists for each direction from the active node
+        # Create destNodeID and relationship lists for each direction from the
+        # active node
         destNodeIDs_dir0 = [focusNodeID]
+        linkIDs_forward_dir0, linkIDs_reverse_dir0 = [None], [None]
 
-        activeLinks_dir1 = db.LinksDBModel(focusNodeID,
+        activeLinks_dir1 = db.LinksDBModel(self, focusNodeID,
         dirs=[self.axisAssignments['1']])
         destNodeIDs_dir1 = activeLinks_dir1.destNodeIDs()
+        linkIDs_forward_dir1, linkIDs_reverse_dir1 = activeLinks_dir1.linkIDs()
 
-        activeLinks_dir2 = db.LinksDBModel(focusNodeID,
+        activeLinks_dir2 = db.LinksDBModel(self, focusNodeID,
         dirs=[self.axisAssignments['2']])
         destNodeIDs_dir2 = activeLinks_dir2.destNodeIDs()
+        linkIDs_forward_dir2, linkIDs_reverse_dir2 = activeLinks_dir2.linkIDs()
 
-        activeLinks_dir3 = db.LinksDBModel(focusNodeID,
+        activeLinks_dir3 = db.LinksDBModel(self, focusNodeID,
         dirs=[self.axisAssignments['3']])
         destNodeIDs_dir3 = activeLinks_dir3.destNodeIDs()
+        linkIDs_forward_dir3, linkIDs_reverse_dir3 = activeLinks_dir3.linkIDs()
 
-        activeLinks_dir4 = db.LinksDBModel(focusNodeID,
+        activeLinks_dir4 = db.LinksDBModel(self, focusNodeID,
         dirs=[self.axisAssignments['4']])
         destNodeIDs_dir4 = activeLinks_dir4.destNodeIDs()
+        linkIDs_forward_dir4, linkIDs_reverse_dir4 = activeLinks_dir4.linkIDs()
 
         # Set network geometry
         networkCenterX = centerCoords[0]
@@ -321,6 +339,8 @@ class Window(QMainWindow):
             # Add node images into the scene for this axis direction
             linkNodeImgs_thisAxisDir = []
             destNodeIDs = eval('destNodeIDs_dir'+str(axisDir))
+            linkIDs_forward = eval('linkIDs_forward_dir'+str(axisDir))
+            linkIDs_reverse = eval('linkIDs_reverse_dir'+str(axisDir))
             startLimitAxis, xSign, ySign = axisDirectionMultipliers[str(
             axisDir)]
 
@@ -336,9 +356,12 @@ class Window(QMainWindow):
                     centerX = networkCenterX + xSign*relationOrbit
                     centerY = relationStartLimit + self.nodeImgHeight*1.1*i
 
-                if int(destNodeIDs[i]) in self.activeLinkNodeIDs:########################################### REORDER ALTERNATIVES AND LABEL THEM.
+                if int(destNodeIDs[i]) in self.activeLinkNodeIDs:
+                    # If the node already exists on the graph, pass
                     pass
                 else:
+                    # If the node doesn't exist on the graph yet, create the
+                    # node image
                     linkNodeImg = self.addNode(
                         name='activeLinkNodeImg_ring'+str(ring)+'_dir'+\
                         str(axisDir)+'_'+str(i),
@@ -359,9 +382,9 @@ class Window(QMainWindow):
                     activeLinkNodeCenters.append([centerX, centerY])
                     ringLinkNodeIDs.append(destNodeIDs[i])
                     self.activeLinkNodeIDs.append(int(destNodeIDs[i]))
-                    self.activeLinkNodeImgs.append(linkNodeImg)#######################
+                    self.activeLinkNodeImgs.append(linkNodeImg)
 
-            # Add link images into the scene for this direction ############################## THIS NEEDS TO LINK TO THE *OLD* NODE *IF* IT EXISTS.
+            # Add link images into the scene for this direction
             activeLinkImgs = []
             if focusNodeImg != None:
                 for i in range(len(destNodeIDs)):
@@ -380,6 +403,8 @@ class Window(QMainWindow):
                             anchor2=self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))].rightAnchor
                         linkImg = self.addLink(
                             scene=self.sceneNetwork,
+                            linkID_forward=linkIDs_forward[int(destNodeIDs[i])],
+                            linkID_reverse=linkIDs_reverse[int(destNodeIDs[i])],
                             nodeImg1=focusNodeImg,
                             anchor1=anchor1,
                             nodeImg2=self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))],############################ HERE
@@ -402,6 +427,8 @@ class Window(QMainWindow):
                             anchor2=ringLinkNodeImgs[str(axisDir)][i].rightAnchor
                         linkImg = self.addLink(
                             scene=self.sceneNetwork,
+                            linkID_forward=linkIDs_forward[int(destNodeIDs[i])],
+                            linkID_reverse=linkIDs_reverse[int(destNodeIDs[i])],
                             nodeImg1=focusNodeImg,
                             anchor1=anchor1,
                             nodeImg2=ringLinkNodeImgs[str(axisDir)][i],
@@ -419,7 +446,7 @@ class Window(QMainWindow):
             self.notesDBModel.modelNotes.record(0).value('body').toString()
         )
         # Set up the auto-save timer
-        self.notesTimer = QTimer()
+        self.notesTimer = QtCore.QTimer()
         self.notesTimer.timeout.connect(self.saveNotes)
         self.notesChangedFlag = False
         self.notesTimer.start(10000)
@@ -431,7 +458,7 @@ class Window(QMainWindow):
     def saveNotes(self):
         # Save the notes for the active node
         if self.notesChangedFlag == True:
-            notesText = htmlParse(self.notesEditor.text.toHtml())
+            notesText = htmlParse.htmlParse(self.notesEditor.text.toHtml())
             self.brain.saveNotes(notesText)
             self.renderNotes()
 
@@ -493,12 +520,12 @@ class Window(QMainWindow):
         # Add a node image into the specified scene
 
         # Initialize the node graphic and properties
-        node = NodeImg(self, name, nodeID, dir, centerX, centerY,
+        node = nodeImg.NodeImg(self, name, nodeID, dir, centerX, centerY,
         width, height)
         node.setFlags(
-            QGraphicsItem.ItemIsSelectable |
-            QGraphicsItem.ItemIsMovable |
-            QGraphicsItem.ItemSendsScenePositionChanges
+            QtGui.QGraphicsItem.ItemIsSelectable |
+            QtGui.QGraphicsItem.ItemIsMovable |
+            QtGui.QGraphicsItem.ItemSendsScenePositionChanges
             )
         scene.addItem(node)
 
@@ -506,9 +533,9 @@ class Window(QMainWindow):
         for anchor in node.anchors:
             scene.addItem(anchor)
             anchor.setFlags(
-                QGraphicsItem.ItemIsSelectable |
-                QGraphicsItem.ItemIsMovable|
-                QGraphicsItem.ItemSendsScenePositionChanges)
+                QtGui.QGraphicsItem.ItemIsSelectable |
+                QtGui.QGraphicsItem.ItemIsMovable|
+                QtGui.QGraphicsItem.ItemSendsScenePositionChanges)
             anchor.setParentItem(node)
 
         # Add text and set it as child of the node graphic
@@ -517,7 +544,7 @@ class Window(QMainWindow):
             node.nodeDBModel.model.record(0).value('ID').toString()
         )
         node.text.setTextWidth(width*0.9)
-        font = QFont('Arial')
+        font = QtGui.QFont('Arial')
         font.setPixelSize(textSize)
         node.text.setFont(font)
         node.text.setPos(   node.centerX-node.width/2+5,
@@ -527,15 +554,20 @@ class Window(QMainWindow):
         # Return the node's pointer
         return node
 
-    def addLink(self, scene, nodeImg1, anchor1, nodeImg2, anchor2):
+    def addLink(self, scene, linkID_forward, linkID_reverse, nodeImg1, anchor1,
+                nodeImg2, anchor2):
         # Add a link image into the network scene
 
+        # Add link ID and its opposite to the opposite-linkIDs dictionary
+        self.oppositeLinkIDs.update({linkID_forward: linkID_reverse})
+
         # Add link graphic to scene and set attributes
-        linkImg = scene.addLine(
-            nodeImg1.centerX+anchor1.xOffset, nodeImg1.centerY+anchor1.yOffset,
-            nodeImg2.centerX+anchor2.xOffset, nodeImg2.centerY+anchor2.yOffset,
-            QPen(Qt.black, 1, Qt.SolidLine)
-        )
+        linkImg = nodeImg.RelationshipImg(self, None, linkID_forward,
+        linkID_reverse, nodeImg1.centerX+anchor1.xOffset,
+        nodeImg1.centerY+anchor1.yOffset, nodeImg2.centerX+anchor2.xOffset,
+        nodeImg2.centerY+anchor2.yOffset, QtGui.QPen(QtCore.Qt.black, 1,
+        QtCore.Qt.SolidLine))
+        scene.addItem(linkImg)
         linkImg.nodeAtWhichEnd = {}
 
         # Add lines to the node image's list of lines
@@ -568,16 +600,16 @@ class Window(QMainWindow):
     def center(self):
         # Center window in desktop
         frame = self.frameGeometry()
-        centerPoint = QDesktopWidget().availableGeometry().center()
+        centerPoint = QtGui.QDesktopWidget().availableGeometry().center()
         frame.moveCenter(centerPoint)
         self.move(frame.topLeft())
 
     def closeEvent(self, event):
         # Redefines superclass close event with a message box to confirm quit
-        reply = QMessageBox.question(self, 'Confirm exit',
-        'Are you sure you want to quit?', QMessageBox.Yes |
-        QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
+        reply = QtGui.QMessageBox.question(self, 'Confirm exit',
+        'Are you sure you want to quit?',
+        QtGui.QMessageBox.Yes | QtGui.QMessageBox.No, QtGui.QMessageBox.No)
+        if reply == QtGui.QMessageBox.Yes:
             event.accept()
         else:
             event.ignore()
@@ -593,7 +625,7 @@ class Window(QMainWindow):
 #Code to make module into script-----------
 if __name__ == "__main__":
 
-    app = QApplication(sys.argv)
+    app = QtGui.QApplication(sys.argv)
     newWindow = Window()
     app.aboutToQuit.connect(newWindow.exitCleanup)
     sys.exit(app.exec_())

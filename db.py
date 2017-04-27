@@ -356,6 +356,32 @@ class Brain:
         else:
             print 'Canceled...'
 
+    def deleteRelationships(self, relationshipID):###################### Change this so you can input any number of relationship IDs
+        # Delete a node and all its relations.
+
+        relationshipIDs = [str(relationshipID), str(self.window.oppositeLinkIDs[relationshipID])]
+
+        # Display input box querying to continue or not
+        confirm = QMessageBox.question(None, 'Confirm delete',
+        'Delete this relationship (and any opposite relationship)?',
+        QMessageBox.Yes, QMessageBox.No)
+
+        # Either call the delete method or abort
+        if confirm == QMessageBox.Yes:
+
+            # Define queries to delete links
+            queryTexts = [
+            "DELETE FROM links WHERE (id=" + \
+            ') or id=('.join(relationshipIDs) + ')'
+            ]
+
+            # Execute queries, then refresh the network view
+            queries = self.querySet(queryTexts)
+            self.window.setActiveNode(self.window.activeNodeID)
+
+        else:
+            print 'Canceled...'
+
     def saveNotes(self, notesText):
 
         # Define and execute query to determine whether notes item exists
@@ -481,38 +507,69 @@ class NotesDBModel:
 
 class LinksDBModel:
     #A read-write model based on a SQL query on the LINKS table
-    def __init__(self, activeNodeID, dirs=[1]):
+    def __init__(self, window, activeNodeID, dirs=[1]):
         self.listNumber = False
+        self.window = window
         self.activeNodeID = activeNodeID
         self.dirs = dirs
-        self.model = QSqlQueryModel()
+        self.dirsAndOppositeDirs = dirs + \
+        self.window.axisAssignmentOpposites.values()
+        self.destLinksModel = QSqlQueryModel()
+        self.destAndReturnLinksModel = QSqlQueryModel()
 
-        # Define and execute query
+        # Define and execute queries
         query = 'SELECT * FROM links WHERE (ida=' + str(self.activeNodeID) + \
         ' or idb=' + str(self.activeNodeID) + ') and direction IN (' + \
         ', '.join(str(dir) for dir in self.dirs) + ')'
-        self.model.setQuery(query)
+        self.destLinksModel.setQuery(query)
+
+        query = 'SELECT * FROM links WHERE (ida=' + str(self.activeNodeID) + \
+        ' or idb=' + str(self.activeNodeID) + ') and direction IN (' + \
+        ', '.join(str(dir) for dir in self.dirsAndOppositeDirs) + ')'
+        self.destAndReturnLinksModel.setQuery(query)
 
     def destNodeIDs(self):
-        # Queries and returns the IDs of nodes related to the active node
+        # Returns the IDs of nodes related to the active node
 
         # Determines whether all or only a fixed number of links are queried
         if self.listNumber == False:
-            end = self.model.rowCount()
+            end = self.destLinksModel.rowCount()
         else:
             end = self.listNumber
 
-        # Defines and performs the query and adds the nodes to a list
+        # Adds the nodes to a list
         destNodeIDs = []
         for i in range(0, end):
-            if self.model.record(i).value('ida') == self.activeNodeID:
-                destNodeIDs.append(self.model.record(i).value('idb').toString())
+            if self.destLinksModel.record(i).value('ida') == self.activeNodeID:
+                destNodeIDs.append(
+                self.destLinksModel.record(i).value('idb').toString())
             # There are actually 2 links for each visible link. Double links are
             # created at the same time, and have sequential IDs. We are ignoring
             # the second one, but the code below would reinstantiate it (and
             # create false link nodes "mirroring" the active node).
-            #if self.model.record(i).value('idb') == self.activeNodeID:
-            #destNodeIDs.append(self.model.record(i).value('ida').toString())
 
         # Returns the related node IDs
         return destNodeIDs
+
+    def linkIDs(self):
+        # Returns the IDs of relationships from/to the active node
+
+        # Create dictionaries of forward and reverse links for each node, with
+        # Nones if there are no links in that direction.
+        destNodeIDs = self.destNodeIDs()
+        linkIDs_forward = {}
+        linkIDs_reverse = {}
+        for i in range(0, len(destNodeIDs)):
+            destNodeID = int(destNodeIDs[i])
+            linkIDs_forward.update({destNodeID: None})
+            linkIDs_reverse.update({destNodeID: None})
+            for j in range(0, self.destAndReturnLinksModel.rowCount()):
+                if int(self.destAndReturnLinksModel.record(j).value('idb').toString()) == destNodeID:
+                    linkIDs_forward[destNodeID] = int(self.destAndReturnLinksModel.record(j).value('id').toString())
+                if int(self.destAndReturnLinksModel.record(j).value('ida').toString()) == destNodeID:
+                    linkIDs_reverse[destNodeID] = int(self.destAndReturnLinksModel.record(j).value('id').toString())
+                # There are actually 2 links for each visible link. Double links are
+                # created at the same time, and have sequential IDs.
+
+        # Returns the relationship IDs
+        return linkIDs_forward, linkIDs_reverse

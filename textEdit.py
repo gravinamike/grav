@@ -11,8 +11,7 @@ last edited: March 2017
 """
 
 import sys
-from PyQt4 import QtGui, QtCore
-from PyQt4.QtCore import Qt
+from PyQt4 import QtCore, QtGui
 from ext import *
 
 class TextEdit(QtGui.QMainWindow):
@@ -311,7 +310,7 @@ class TextEdit(QtGui.QMainWindow):
         self.text.cursorPositionChanged.connect(self.cursorPosition)
 
         # We need our own context menu for tables
-        self.text.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.text.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.text.customContextMenuRequested.connect(self.context)
 
         self.text.textChanged.connect(self.changed)
@@ -722,16 +721,16 @@ class TextEdit(QtGui.QMainWindow):
         self.text.setCurrentCharFormat(fmt)
 
     def alignLeft(self):
-        self.text.setAlignment(Qt.AlignLeft)
+        self.text.setAlignment(QtCore.Qt.AlignLeft)
 
     def alignRight(self):
-        self.text.setAlignment(Qt.AlignRight)
+        self.text.setAlignment(QtCore.Qt.AlignRight)
 
     def alignCenter(self):
-        self.text.setAlignment(Qt.AlignCenter)
+        self.text.setAlignment(QtCore.Qt.AlignCenter)
 
     def alignJustify(self):
-        self.text.setAlignment(Qt.AlignJustify)
+        self.text.setAlignment(QtCore.Qt.AlignJustify)
 
     def indent(self):
 

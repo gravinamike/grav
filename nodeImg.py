@@ -9,10 +9,10 @@ last edited: December 2016
 """
 
 import grav.db as db
-from PyQt4.QtCore import(Qt, QLineF, QPointF, QSignalMapper, QMimeData)
+from PyQt4.QtCore import(Qt, QLineF, QPointF, QSignalMapper, QMimeData, QString)
 from PyQt4.QtGui import(QAction, QLineEdit, QGraphicsItem, QGraphicsRectItem,
-QGraphicsEllipseItem, QMenu, QDrag, QPen, QCursor, qApp)
-
+QGraphicsEllipseItem, QGraphicsLineItem, QMenu, QDrag, QPen, QCursor, qApp)
+from PyQt4 import QtGui
 
 class NodeImg(QGraphicsRectItem):
     # A graphical representation of a node, referring to a database model which
@@ -214,3 +214,61 @@ class Anchor(QGraphicsEllipseItem):
             self.dragLink = None
             self.window.sceneNetwork.removeItem(self.dragCircle)
             self.dragCircle = None
+
+
+class RelationshipImg(QGraphicsLineItem):################################################ BEGIN WRITING CUSTOM LINE CLASS THAT CAN BE DELETED, then make window.py both instantiate and add to scene
+    # A graphical representation of a relationship, referring to a database
+    # model which defines relationship information.
+
+    def __init__(self, window, name, linkID_forward, linkID_reverse, p1x, p1y,
+                p2x, p2y, pen):
+        # Initialization from superclass and call to class constructor
+        super(RelationshipImg, self).__init__(p1x, p1y, p2x, p2y)
+        self.setPen(pen)
+
+        # Define basic attributes of node graphic
+        self.name = name
+        self.window = window
+        self.linkID_forward = linkID_forward
+        self.linkID_reverse = linkID_reverse
+
+    def shape(self):
+        # Redefine the clickable area to be bigger
+
+        path = QtGui.QPainterPath()
+        stroker = QtGui.QPainterPathStroker()
+        stroker.setWidth(self.pen().width() + 5)
+        path.moveTo(self.line().p1())
+        path.lineTo(self.line().p2())
+
+        return stroker.createStroke(path)
+
+    def mouseDoubleClickEvent(self, event):
+        # On double-click...
+        pass
+
+    def contextMenuEvent(self, event):
+        # Defines right-click menu and associated actions
+
+        # Create the menu object
+        menu = QMenu()
+
+        # A test action
+        testAction = QAction('Test', None)
+        testAction.triggered.connect(self.print_out)
+        menu.addAction(testAction)
+
+        # Action to delete this link and opposite ################################################ IT JUST DOESN'T SEND QSTRINGS
+        self.deleteAction = QAction('Delete relationship', None)
+        signalMapper = QSignalMapper()
+        self.deleteAction.triggered.connect(signalMapper.map)
+        signalMapper.setMapping(self.deleteAction, self.linkID_forward)
+        signalMapper.mapped.connect(self.window.brain.deleteRelationships)
+        menu.addAction(self.deleteAction)
+
+        # Displays the menu
+        menu.exec_(event.screenPos())
+
+    def print_out(self, fake):
+        # Prints out the word "Triggered"
+        print 'Triggered', self.linkID_forward, self.linkID_reverse
