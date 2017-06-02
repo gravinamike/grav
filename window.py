@@ -17,29 +17,34 @@ from PyQt4 import QtCore, QtGui
 
 
 class Window(QtGui.QMainWindow):
-    # Implements the Seahorse main window
+    # Seahorse main window
 
     def __init__(self):
-        # Initialization from superclass and call to class constructor
         super(Window, self).__init__()
-        # Initialize Brain that is shown in window
+        # Initialize Brain database
         self.brain = db.Brain(self)
-        # Define active node of network, pin nodes, history nodes
+
+        # Set active node of network, pin nodes, history nodes
         self.activeNodeID = 30
         self.pinNodeIDs = []
         self.historyNodeIDs = []
         # Set relationship directions to each view axis, and their opposites
         self.axisDirections = db.AxisDirectionsDBModel(1, 2, 3, 4)
-        self.axisAssignments = {'1': 1, '2': 2, '3': 3, '4': 4}
+        self.axisAssignments = {1: 1, 2: 2, 3: 3, 4: 4}
         self.axisAssignmentOpposites = {}
         self.getAxisAssignmentOpposites()
         # Set dictionary of linkIDs and their opposite linkIDs
         self.oppositeLinkIDs = {}
+        # Set size of node images
+        self.nodeImgWidth = 100
+        self.nodeImgHeight = 50
+        self.nodeImgTextSize = 12
+
         # Initialize the window user interface
         self.initUI()
 
     def initUI(self, labelText=None):
-        # Sets window geometry and features.
+        # Set window geometry and features
 
         # Set basic config of window
         self.resize(2000, 1500)
@@ -58,32 +63,26 @@ class Window(QtGui.QMainWindow):
         self.toolbar = self.addToolBar('Exit')
         self.toolbar.addAction(exitAction)
         self.statusBar().showMessage('Ready')
-        # Set size of node images
-        self.nodeImgWidth = 100
-        self.nodeImgHeight = 50
-        self.nodeImgTextSize = 12
 
-        # Create the network scene, view and element list for later deletion
+        # Create network scene, view and element lists for later deletion
         self.sceneNetwork = QtGui.QGraphicsScene()
-        #self.sceneNetwork.setSceneRect(0, 0, 800, 600)
         self.view = QtGui.QGraphicsView(self.sceneNetwork)
         self.view.setMinimumWidth(800)
         self.view.setMinimumHeight(600)
         self.networkElements = []
         self.directionElements = []
 
-        # Create the pin scene/view
+        # Create pin scene/view
         self.scenePins = QtGui.QGraphicsScene()
         self.viewPins = QtGui.QGraphicsView(self.scenePins)
 
-        # Create the history scene/view
+        # Create history scene/view
         self.sceneHistory = QtGui.QGraphicsScene()
         self.viewHistory = QtGui.QGraphicsView(self.sceneHistory)
 
-        # Create the direction table portal and direction-add/remove buttons
+        # Create direction table portal and direction-add/remove buttons
         self.tableDirections = QtGui.QTableView()
         self.tableDirections.setModel(self.brain.modelDirections)
-        #self.tableDirections.setColumnHidden(0, True)
         self.tableDirections.setColumnWidth(1, 170)
         self.tableDirections.setColumnWidth(2, 170)
         self.tableDirections.setColumnWidth(3, 170)
@@ -98,7 +97,7 @@ class Window(QtGui.QMainWindow):
         self.directionsBox.addWidget(self.buttonAddDir)
         self.directionsBox.addWidget(self.buttonDelDir)
 
-        # Create the axis-direction-setting view
+        # Create axis-direction-setting view
         self.sceneDirections = QtGui.QGraphicsScene()
         self.sceneDirections.setSceneRect(-200, -200, 400, 400)
         self.viewDirections = QtGui.QGraphicsView(self.sceneDirections)
@@ -108,7 +107,7 @@ class Window(QtGui.QMainWindow):
         self.viewDirections.setVerticalScrollBarPolicy(
         QtCore.Qt.ScrollBarAlwaysOff)
 
-        # Create the node attribute pane
+        # Create node attribute pane
         attribBox = QtGui.QHBoxLayout()
         lineEdit3 = QtGui.QLineEdit()
 
@@ -136,11 +135,18 @@ class Window(QtGui.QMainWindow):
         viewPane.addWidget(self.viewPins)
         viewPane.addWidget(self.view)
         viewPane.addWidget(self.viewHistory)
-        # Network/notes pane
-        hbox = QtGui.QHBoxLayout()
+        # Notes pane
+        notesPane = QtGui.QVBoxLayout()
+        self.editButton = QtGui.QPushButton('Edit/read-only')
+        self.editButton.setCheckable(True)
         self.notesEditor = textEdit.TextEdit(self)
         self.notesEditor.text.textChanged.connect(self.markNotesChanges)
-        hbox.addWidget(self.notesEditor)
+        self.editButton.clicked.connect(self.notesEditor.setReadOnly)
+        notesPane.addWidget(self.notesEditor)
+        notesPane.addWidget(self.editButton)
+        # Network/notes pane
+        hbox = QtGui.QHBoxLayout()
+        hbox.addLayout(notesPane)
         hbox.addLayout(viewPane)
         # Network/notes/attribute pane
         vbox = QtGui.QVBoxLayout()
@@ -156,26 +162,29 @@ class Window(QtGui.QMainWindow):
         self.renderPins()
         self.historyNodeImgs = []
         self.renderDirections(self.sceneDirections)
-        #self.renderHistoryNodes()
 
         # Display the window
         self.show()
 
     def assignAxis(self, axisDir, assignedDir):
-        self.axisAssignments[str(axisDir)] = assignedDir
+        # Assigns a unidirectional axis of the view to a database direction
+        self.axisAssignments[axisDir] = assignedDir
         self.getAxisAssignmentOpposites()
         self.renderDirections(self.sceneDirections)
         self.setActiveNode(self.activeNodeID)
 
     def assignAxisAndOpposite(self, axisDir, assignedDir, oppositeDir):
-        self.axisAssignments[str(axisDir)] = assignedDir
-        axisOppositeDirs = {'1': 2, '2': 1, '3': 4, '4': 3}
-        self.axisAssignments[str(axisOppositeDirs[str(axisDir)])] = oppositeDir
+        # Assigns a bidirectional axis of the view to a database direction and
+        # its opposite
+        self.axisAssignments[axisDir] = assignedDir
+        axisOppositeDirs = {1: 2, 2: 1, 3: 4, 4: 3}
+        self.axisAssignments[axisOppositeDirs[axisDir]] = oppositeDir
         self.getAxisAssignmentOpposites()
         self.renderDirections(self.sceneDirections)
         self.setActiveNode(self.activeNodeID)
 
     def getAxisAssignmentOpposites(self):
+        # Sets dictionary of direction-axis assignments
         self.axisAssignmentOpposites = {}
         model = self.axisDirections.model
         for row in range(0, model.rowCount()):
@@ -230,8 +239,8 @@ class Window(QtGui.QMainWindow):
         for key in axisTexts.keys():
             for row in range(0, model.rowCount()):
                 if int(model.record(row).value(
-                'id').toString()) == self.axisAssignments[str(
-                axisDirToRelationDir[key])]:
+                'id').toString()) == self.axisAssignments[
+                axisDirToRelationDir[key]]:
                     axisTexts[key][0] = str(model.record(row).value(
                     'text').toString())
 
@@ -284,8 +293,18 @@ class Window(QtGui.QMainWindow):
             centerList = nextCenterList
             nodeList = nextNodeList
 
-    # Render a single ring of relations around a central node
+            nextCenterList = []
+            nextNodeList = []
+
+        length = len(centerList)
+        for i in range(0, length):
+            centerCoords = centerList[i]
+            centerNode = nodeList[i]
+            self.renderLastLinksRing(centerCoords, centerNode)
+        self.sceneNetwork.update()
+
     def renderOneRing(self, centerCoords, focusNodeImg, ring):
+        # Render a single ring of relations around a central node
 
         if ring == 0:
             focusNodeID = self.activeNodeID
@@ -298,22 +317,22 @@ class Window(QtGui.QMainWindow):
         linkIDs_forward_dir0, linkIDs_reverse_dir0 = [None], [None]
 
         activeLinks_dir1 = db.LinksDBModel(self, focusNodeID,
-        dirs=[self.axisAssignments['1']])
+        dirs=[self.axisAssignments[1]])
         destNodeIDs_dir1 = activeLinks_dir1.destNodeIDs()
         linkIDs_forward_dir1, linkIDs_reverse_dir1 = activeLinks_dir1.linkIDs()
 
         activeLinks_dir2 = db.LinksDBModel(self, focusNodeID,
-        dirs=[self.axisAssignments['2']])
+        dirs=[self.axisAssignments[2]])
         destNodeIDs_dir2 = activeLinks_dir2.destNodeIDs()
         linkIDs_forward_dir2, linkIDs_reverse_dir2 = activeLinks_dir2.linkIDs()
 
         activeLinks_dir3 = db.LinksDBModel(self, focusNodeID,
-        dirs=[self.axisAssignments['3']])
+        dirs=[self.axisAssignments[3]])
         destNodeIDs_dir3 = activeLinks_dir3.destNodeIDs()
         linkIDs_forward_dir3, linkIDs_reverse_dir3 = activeLinks_dir3.linkIDs()
 
         activeLinks_dir4 = db.LinksDBModel(self, focusNodeID,
-        dirs=[self.axisAssignments['4']])
+        dirs=[self.axisAssignments[4]])
         destNodeIDs_dir4 = activeLinks_dir4.destNodeIDs()
         linkIDs_forward_dir4, linkIDs_reverse_dir4 = activeLinks_dir4.linkIDs()
 
@@ -388,26 +407,25 @@ class Window(QtGui.QMainWindow):
             activeLinkImgs = []
             if focusNodeImg != None:
                 for i in range(len(destNodeIDs)):
-                    if int(destNodeIDs[i]) in self.activeLinkNodeIDs:########################################### COMPRESS THE BELOW (IT REPEATS self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))])
-                        if axisDir == 1:
-                            anchor1=focusNodeImg.bottomAnchor
-                            anchor2=self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))].topAnchor
-                        elif axisDir == 2:
-                            anchor1=focusNodeImg.topAnchor
-                            anchor2=self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))].bottomAnchor
-                        elif axisDir == 3:
-                            anchor1=focusNodeImg.rightAnchor
-                            anchor2=self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))].leftAnchor
-                        elif axisDir == 4:
-                            anchor1=focusNodeImg.leftAnchor
-                            anchor2=self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))].rightAnchor
+                    if int(destNodeIDs[i]) in self.activeLinkNodeIDs:
+                        destNodeImg = self.activeLinkNodeImgs[
+                        self.activeLinkNodeIDs.index(int(destNodeIDs[i]))]
+                        focusAnchorDirs = {1: 'bottom', 2: 'top', 3: 'right',
+                        4: 'left'}
+                        destAnchorDirs = {1: 'top', 2: 'bottom', 3: 'left',
+                        4: 'right'}
+                        anchor1 = eval('focusNodeImg.'+focusAnchorDirs[
+                        axisDir]+'Anchor')
+                        anchor2 = eval('destNodeImg.'+destAnchorDirs[
+                        axisDir]+'Anchor')
                         linkImg = self.addLink(
                             scene=self.sceneNetwork,
                             linkID_forward=linkIDs_forward[int(destNodeIDs[i])],
                             linkID_reverse=linkIDs_reverse[int(destNodeIDs[i])],
                             nodeImg1=focusNodeImg,
                             anchor1=anchor1,
-                            nodeImg2=self.activeLinkNodeImgs[self.activeLinkNodeIDs.index(int(destNodeIDs[i]))],############################ HERE
+                            nodeImg2=self.activeLinkNodeImgs[
+                            self.activeLinkNodeIDs.index(int(destNodeIDs[i]))],
                             anchor2=anchor2
                         )
                         activeLinkImgs.append(linkImg)
@@ -439,6 +457,87 @@ class Window(QtGui.QMainWindow):
 
         return activeLinkNodeCenters, ringLinkNodeIDs, linkNodeImgs_all
 
+    def renderLastLinksRing(self, centerCoords, focusNodeImg):
+        # Render the last set of links after the final ring of nodes (only those
+        # which connect to nodes already on the view)
+
+        focusNodeID = focusNodeImg.nodeID
+
+        # Create destNodeID and relationship lists for each direction from the
+        # active node
+        destNodeIDs_dir0 = [focusNodeID]
+        linkIDs_forward_dir0, linkIDs_reverse_dir0 = [None], [None]
+
+        activeLinks_dir1 = db.LinksDBModel(self, focusNodeID,
+        dirs=[self.axisAssignments[1]])
+        destNodeIDs_dir1 = activeLinks_dir1.destNodeIDs()
+        linkIDs_forward_dir1, linkIDs_reverse_dir1 = activeLinks_dir1.linkIDs()
+
+        activeLinks_dir2 = db.LinksDBModel(self, focusNodeID,
+        dirs=[self.axisAssignments[2]])
+        destNodeIDs_dir2 = activeLinks_dir2.destNodeIDs()
+        linkIDs_forward_dir2, linkIDs_reverse_dir2 = activeLinks_dir2.linkIDs()
+
+        activeLinks_dir3 = db.LinksDBModel(self, focusNodeID,
+        dirs=[self.axisAssignments[3]])
+        destNodeIDs_dir3 = activeLinks_dir3.destNodeIDs()
+        linkIDs_forward_dir3, linkIDs_reverse_dir3 = activeLinks_dir3.linkIDs()
+
+        activeLinks_dir4 = db.LinksDBModel(self, focusNodeID,
+        dirs=[self.axisAssignments[4]])
+        destNodeIDs_dir4 = activeLinks_dir4.destNodeIDs()
+        linkIDs_forward_dir4, linkIDs_reverse_dir4 = activeLinks_dir4.linkIDs()
+
+        # Set network geometry
+        networkCenterX = centerCoords[0]
+        networkCenterY = centerCoords[1]
+
+        # Add relation link images into the scene for each axis direction
+        axisDirectionMultipliers = {'0': ['X', 0, 0], '1': ['X', 0, 1],
+        '2': ['X', 0, -1], '3': ['Y', 1, 0], '4': ['Y', -1, 0]}
+        ringLinkNodeIDs = []
+        activeLinkNodeCenters = []
+        ringLinkNodeImgs = {}
+        linkNodeImgs_all = []
+
+        axisDirSet = [1, 2, 3, 4]
+
+        for axisDir in axisDirSet:
+            # Add node images into the scene for this axis direction
+            linkNodeImgs_thisAxisDir = []
+            destNodeIDs = eval('destNodeIDs_dir'+str(axisDir))
+            linkIDs_forward = eval('linkIDs_forward_dir'+str(axisDir))
+            linkIDs_reverse = eval('linkIDs_reverse_dir'+str(axisDir))
+            startLimitAxis, xSign, ySign = axisDirectionMultipliers[str(
+            axisDir)]
+
+            # Add link images into the scene for this direction
+            activeLinkImgs = []
+            for i in range(len(destNodeIDs)):
+                if int(destNodeIDs[i]) in self.activeLinkNodeIDs:
+                    destNodeImg = self.activeLinkNodeImgs[
+                    self.activeLinkNodeIDs.index(int(destNodeIDs[i]))]
+                    focusAnchorDirs = {1: 'bottom', 2: 'top', 3: 'right',
+                    4: 'left'}
+                    destAnchorDirs = {1: 'top', 2: 'bottom', 3: 'left',
+                    4: 'right'}
+                    anchor1 = eval('focusNodeImg.'+focusAnchorDirs[
+                    axisDir]+'Anchor')
+                    anchor2 = eval('destNodeImg.'+destAnchorDirs[
+                    axisDir]+'Anchor')
+                    linkImg = self.addLink(
+                        scene=self.sceneNetwork,
+                        linkID_forward=linkIDs_forward[int(destNodeIDs[i])],
+                        linkID_reverse=linkIDs_reverse[int(destNodeIDs[i])],
+                        nodeImg1=focusNodeImg,
+                        anchor1=anchor1,
+                        nodeImg2=self.activeLinkNodeImgs[
+                        self.activeLinkNodeIDs.index(int(destNodeIDs[i]))],
+                        anchor2=anchor2
+                    )
+                    activeLinkImgs.append(linkImg)
+                    self.networkElements.append(linkImg)
+
     def renderNotes(self):
         # Render the notes for the active node
         self.notesDBModel = db.NotesDBModel(self, self.activeNodeID)
@@ -460,7 +559,11 @@ class Window(QtGui.QMainWindow):
         if self.notesChangedFlag == True:
             notesText = htmlParse.htmlParse(self.notesEditor.text.toHtml())
             self.brain.saveNotes(notesText)
-            self.renderNotes()
+            # Set up the auto-save timer
+            self.notesTimer = QtCore.QTimer()
+            self.notesTimer.timeout.connect(self.saveNotes)
+            self.notesChangedFlag = False
+            self.notesTimer.start(10000)
 
     def renderPins(self):
         # Add the pin node images into the scene

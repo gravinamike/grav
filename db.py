@@ -15,9 +15,7 @@ import site
 from subprocess import Popen
 from uuid import uuid4
 from datetime import datetime
-from PyQt4.QtCore import(Qt, QObject, QString, QLatin1String)
-from PyQt4.QtGui import(QApplication, QMessageBox, QInputDialog, QLineEdit)
-from PyQt4.QtSql import(QSqlDatabase, QSqlQuery, QSqlQueryModel, QSqlTableModel)
+from PyQt4 import QtCore, QtGui, QtSql
 
 
 class Brain:
@@ -34,14 +32,14 @@ class Brain:
 
         #IS THIS CORRECT? IT REFERS TO PYQT 5, NOT 4!
         site_pack_path = site.getsitepackages()[1]
-        QApplication.addLibraryPath(
+        QtGui.QApplication.addLibraryPath(
         '{0}\\PyQt5\\plugins'.format(site_pack_path))
 
         # Establish a connection to the database
         # Add this when it's actually an application:
-        # QApplication.addLibraryPath('C:/Users/Grav/AppData/Local/Programs
+        # QtGui.QApplication.addLibraryPath('C:/Users/Grav/AppData/Local/Programs
         # /Python/Python35-32/Lib/site-packages/PyQt5/plugins/sqldrivers')
-        self.__database = QSqlDatabase.addDatabase('QPSQL')
+        self.__database = QtSql.QSqlDatabase.addDatabase('QPSQL')
         self.__database.setHostName('localhost')
         self.__database.setDatabaseName(
         '~/Desktop/H2 testing/TESTING_LifeLoop_brain/brain_db/brain')
@@ -52,18 +50,18 @@ class Brain:
         #SSL mode disable, server-side prepare?
 
         # Open database and give access to data. If call fails it
-        # returns false; error info obtained from QSqlDatabase.lastError()
+        # returns false; error info obtained from QtSql.QSqlDatabase.lastError()
         ok = self.__database.open()
         if ok == False:
             print 'Could not open database'
             print 'Text: ', self.__database.lastError().text()
             print 'Type: ', str(self.__database.lastError().type())
             print 'Number: ', str(self.__database.lastError().number())
-            print 'Loaded drivers:', str(QSqlDatabase.drivers())
+            print 'Loaded drivers:', str(QtSql.QSqlDatabase.drivers())
 
         # If DIRECTIONS table doesn't yet exist, create it
         if self.__database.tables().contains(
-        QLatin1String('PUBLIC.DIRECTIONS')):
+        QtCore.QLatin1String('PUBLIC.DIRECTIONS')):
             print 'Table found!'
         else:
             print 'Directions table not found - creating table!'
@@ -76,7 +74,7 @@ class Brain:
 
         # If DIRECTION field doesn't yet exist in LINKS table, create it
         if self.__database.record('PUBLIC.LINKS').contains(
-        QLatin1String('DIRECTION')):
+        QtCore.QLatin1String('DIRECTION')):
             print 'Field found!'
         else:
             print 'Direction field not found in links table- creating field!'
@@ -88,13 +86,13 @@ class Brain:
             queries = self.querySet(queryTexts)
 
         # Create a read-write model based the DIRECTIONS table
-        self.modelDirections = QSqlTableModel(None, self.__database)
+        self.modelDirections = QtSql.QSqlTableModel(None, self.__database)
         self.modelDirections.setTable('PUBLIC.DIRECTIONS')
-        self.modelDirections.setSort(0, Qt.AscendingOrder)
-        self.modelDirections.setHeaderData(1, Qt.Horizontal, 'Direction')
-        self.modelDirections.setHeaderData(2, Qt.Horizontal, 'TheBrainDir')
-        self.modelDirections.setHeaderData(3, Qt.Horizontal, 'Opposite')
-        self.modelDirections.setEditStrategy(QSqlTableModel.OnFieldChange)
+        self.modelDirections.setSort(0, QtCore.Qt.AscendingOrder)
+        self.modelDirections.setHeaderData(1, QtCore.Qt.Horizontal, 'Direction')
+        self.modelDirections.setHeaderData(2, QtCore.Qt.Horizontal, 'TheBrainDir')
+        self.modelDirections.setHeaderData(3, QtCore.Qt.Horizontal, 'Opposite')
+        self.modelDirections.setEditStrategy(QtSql.QSqlTableModel.OnFieldChange)
         #self.modelDirections.dataChanged.connect(self.report1)
         self.modelDirections.select()
 
@@ -102,14 +100,18 @@ class Brain:
         # Define and execute a set of queries against the database
 
         # Initiate transaction
-        #QSqlDatabase.database().transaction()
+        #QtSql.QSqlDatabase.database().transaction()
         self.__database.transaction()
 
         # Iterate through supplied queries, executing and reporting success/fail
         sqlOk = 1
         for queryText in queryTexts:
-            query = QSqlQuery()
-            print queryText
+            if type(queryText) is QtCore.QString:
+                printable = queryText.toUtf8()
+            else:
+                printable = queryText.encode('utf8')
+            print printable
+            query = QtSql.QSqlQuery()
             sqlOk = query.exec_(queryText)
             if sqlOk != 1:
                 break
@@ -119,7 +121,7 @@ class Brain:
             self.__database.commit()
             print 'Committed'
         else:
-            message = QMessageBox.critical(None, 'Error',
+            message = QtGui.QMessageBox.critical(None, 'Error',
             query.lastError().text())
             self.__database.rollback()
 
@@ -133,7 +135,7 @@ class Brain:
         print self.modelDirections.lastError().databaseText()"""
 
         # Define and execute query to determine current max direction serial
-        model = QSqlQueryModel()
+        model = QtSql.QSqlQueryModel()
         query = 'SELECT * FROM directions WHERE id=(SELECT MAX(id) FROM \
         directions)'
         model.setQuery(query)
@@ -158,7 +160,7 @@ class Brain:
         # Delete last record in the DIRECTIONS table.
 
         # Define and execute query to determine current max direction serial
-        model = QSqlQueryModel()
+        model = QtSql.QSqlQueryModel()
         query = 'SELECT * FROM directions WHERE id=(SELECT MAX(id) FROM \
         directions)'
         model.setQuery(query)
@@ -181,8 +183,8 @@ class Brain:
         # Create a related node to the active node and associated links
 
         # Display input box querying for name value
-        entry, ok = QInputDialog.getText(None, 'Enter name for new Thing',
-        'Name:', QLineEdit.Normal, '')
+        entry, ok = QtGui.QInputDialog.getText(None, 'Enter name for new Thing',
+        'Name:', QtGui.QLineEdit.Normal, '')
         # Detect invalid names and abort (return) method if necessary
         if ok and not entry == '':
             newName = entry
@@ -194,13 +196,13 @@ class Brain:
         timeDateStamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
         # Define and execute query to determine current max node serial
-        model = QSqlQueryModel()
+        model = QtSql.QSqlQueryModel()
         query = 'SELECT * FROM thoughts WHERE id=(SELECT MAX(id) FROM thoughts)'
         model.setQuery(query)
         newNodeSerial = str(int(model.record(0).value('id').toString()) + 1)
 
         # Define and execute query to determine current max link serial
-        model = QSqlQueryModel()
+        model = QtSql.QSqlQueryModel()
         query = 'SELECT * FROM links WHERE id=(SELECT MAX(id) FROM links)'
         model.setQuery(query)
         linkSerial1 = str(int(model.record(0).value('id').toString()) + 1)
@@ -208,7 +210,7 @@ class Brain:
 
         # Determine the opposite and TheBrain classic direction numbers from the
         # relation direction
-        model = QSqlQueryModel()
+        model = QtSql.QSqlQueryModel()
         query = 'SELECT * FROM directions WHERE id=(' + str(dir) + ')'
         model.setQuery(query)
         theBrainDir = int(model.record(0).value('thebraindir').toString())
@@ -240,14 +242,14 @@ class Brain:
         # Delete a node and all its relations.
 
         # Display input box querying to continue or not
-        confirm = QMessageBox.question(None, 'Confirm delete',
-        'Delete this node?', QMessageBox.Yes, QMessageBox.No)
+        confirm = QtGui.QMessageBox.question(None, 'Confirm delete',
+        'Delete this node?', QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
 
         # Either call the delete method or abort
-        if confirm == QMessageBox.Yes:
+        if confirm == QtGui.QMessageBox.Yes:
 
             # Define and execute query to determine whether notes item exists
-            model = QSqlQueryModel()
+            model = QtSql.QSqlQueryModel()
             query = 'SELECT * FROM entrytoobject WHERE objectid=' + str(nodeID)
             model.setQuery(query)
             notesQueryTexts = []
@@ -285,12 +287,12 @@ class Brain:
 
         # If method would link a node to itself, display error and return
         if sourceNodeID == destNodeID:
-            message = QMessageBox.critical(None, 'Error',
+            message = QtGui.QMessageBox.critical(None, 'Error',
             'Can\'t relate a Thing to itself!')
             return
 
         # Determine the opposite direction from the relation direction
-        model = QSqlQueryModel()
+        model = QtSql.QSqlQueryModel()
         query = 'SELECT * FROM directions WHERE id=(' + str(sourceDir) + ')'
         model.setQuery(query)
         theBrainDirSource = int(model.record(0).value('thebraindir'\
@@ -300,24 +302,24 @@ class Brain:
         # If method would create paired relationships which are not opposites
         # of one another, display error and return
         if destDir != sourceDirOpposite:
-            #message = QMessageBox.critical(None, 'Error',
+            #message = QtGui.QMessageBox.critical(None, 'Error',
             #'You can\'t relate two Things with relationship types that are \
             #not opposites!')
             return
 
         # Display input box querying to continue or not
-        confirm = QMessageBox.question(None, 'Create relationship?',
-        'Create relationship?', QMessageBox.Yes, QMessageBox.No)
+        confirm = QtGui.QMessageBox.question(None, 'Create relationship?',
+        'Create relationship?', QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
 
         # Either call the delete method or abort
-        if confirm == QMessageBox.Yes:
+        if confirm == QtGui.QMessageBox.Yes:
             # Get a new GUIDs and date/timestamp
             GUID0, GUID1 = uuid4(), uuid4()
             timeDateStamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f'\
             )[:-3]
 
             # Define and execute query to determine current max link serial
-            model = QSqlQueryModel()
+            model = QtSql.QSqlQueryModel()
             query = 'SELECT * FROM links WHERE id=(SELECT MAX(id) FROM links)'
             model.setQuery(query)
             linkSerial1 = str(int(model.record(0).value('id').toString()) + 1)
@@ -325,13 +327,13 @@ class Brain:
 
             # Determine the TheBrain classic direction numbers from the relation
             # direction
-            model = QSqlQueryModel()
+            model = QtSql.QSqlQueryModel()
             query = 'SELECT * FROM directions WHERE id=(' + str(sourceDir) + ')'
             model.setQuery(query)
             theBrainDirSource = int(model.record(0).value('thebraindir'\
             ).toString())
 
-            model = QSqlQueryModel()
+            model = QtSql.QSqlQueryModel()
             query = 'SELECT * FROM directions WHERE id=(' + str(destDir) + ')'
             model.setQuery(query)
             theBrainDirDest = int(model.record(0).value('thebraindir'\
@@ -362,12 +364,12 @@ class Brain:
         relationshipIDs = [str(relationshipID), str(self.window.oppositeLinkIDs[relationshipID])]
 
         # Display input box querying to continue or not
-        confirm = QMessageBox.question(None, 'Confirm delete',
+        confirm = QtGui.QMessageBox.question(None, 'Confirm delete',
         'Delete this relationship (and any opposite relationship)?',
-        QMessageBox.Yes, QMessageBox.No)
+        QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
 
         # Either call the delete method or abort
-        if confirm == QMessageBox.Yes:
+        if confirm == QtGui.QMessageBox.Yes:
 
             # Define queries to delete links
             queryTexts = [
@@ -385,7 +387,7 @@ class Brain:
     def saveNotes(self, notesText):
 
         # Define and execute query to determine whether notes item exists
-        model = QSqlQueryModel()
+        model = QtSql.QSqlQueryModel()
         query = 'SELECT * FROM entries WHERE id=' + \
         str(self.window.notesDBModel.notesID)
         model.setQuery(query)
@@ -395,7 +397,7 @@ class Brain:
             print 'No notes for this node. Creating notes.'
 
             # Define and execute query to determine current max note serial
-            model = QSqlQueryModel()
+            model = QtSql.QSqlQueryModel()
             query = 'SELECT * FROM entries WHERE id=(SELECT MAX(id) FROM \
             entries)'
             model.setQuery(query)
@@ -403,7 +405,7 @@ class Brain:
             1)
 
             # Define/execute query to determine current max note-linker serial
-            model = QSqlQueryModel()
+            model = QtSql.QSqlQueryModel()
             query = 'SELECT * FROM entrytoobject WHERE id=(SELECT MAX(id) FROM \
             entrytoobject)'
             model.setQuery(query)
@@ -459,6 +461,15 @@ class Brain:
             queries = self.querySet(queryTexts)
 
 
+class BrainModel:
+    #A read-write model based on a SQL query on the BRAINS table
+    def __init__(self, GUID):
+        self.model = QtSql.QSqlQueryModel()
+        # Define and execute query
+        query = 'SELECT * FROM brains WHERE guid=\'' + str(GUID) + '\''
+        self.model.setQuery(query)
+
+
 class AxisDirectionsDBModel:
     #A read-write model based on a SQL query on the DIRECTIONS table
     def __init__(self, *dirs):
@@ -467,7 +478,7 @@ class AxisDirectionsDBModel:
         dirList = []
         for dir in dirs:
             dirList.append(str(dir))
-        self.model = QSqlQueryModel()
+        self.model = QtSql.QSqlQueryModel()
         query = 'SELECT * FROM directions WHERE id=(' + \
         ') or id=('.join(dirList) + ')'
         self.model.setQuery(query)
@@ -475,14 +486,19 @@ class AxisDirectionsDBModel:
 
 class NodeDBModel:
     #A read-write model based on a SQL query on the THOUGHTS table
-    def __init__(self, nodeID=1):
-        self.nodeID = nodeID
+    def __init__(self, nodeID=1, nodeGUID=None):
         listNumber = False
 
         # Define and execute query
-        self.model = QSqlQueryModel()
-        query = 'SELECT * FROM thoughts WHERE id=' + str(self.nodeID)
+        self.model = QtSql.QSqlQueryModel()
+        if nodeGUID == None:
+            query = 'SELECT * FROM thoughts WHERE id=' + str(nodeID)
+            self.nodeID = nodeID
+        else:
+            query = 'SELECT * FROM thoughts WHERE guid=\'' + str(nodeGUID) + '\''
         self.model.setQuery(query)
+        if nodeGUID != None:
+            self.nodeID = str(self.model.record(0).value('id').toString())
 
 
 class NotesDBModel:
@@ -493,14 +509,14 @@ class NotesDBModel:
         listNumber = False
 
         # Define and execute query for linker from node to notes
-        self.modelNodeToNotes = QSqlQueryModel()
+        self.modelNodeToNotes = QtSql.QSqlQueryModel()
         query = 'SELECT * FROM entrytoobject WHERE objectid=' + str(self.nodeID)
         self.modelNodeToNotes.setQuery(query)
         self.notesID = self.modelNodeToNotes.record(0).value(
         'entryid').toString()
 
         # Define and execute query for the notes themselves
-        self.modelNotes = QSqlQueryModel()
+        self.modelNotes = QtSql.QSqlQueryModel()
         query = 'SELECT * FROM entries WHERE id=' + str(self.notesID)
         self.modelNotes.setQuery(query)
 
@@ -514,8 +530,8 @@ class LinksDBModel:
         self.dirs = dirs
         self.dirsAndOppositeDirs = dirs + \
         self.window.axisAssignmentOpposites.values()
-        self.destLinksModel = QSqlQueryModel()
-        self.destAndReturnLinksModel = QSqlQueryModel()
+        self.destLinksModel = QtSql.QSqlQueryModel()
+        self.destAndReturnLinksModel = QtSql.QSqlQueryModel()
 
         # Define and execute queries
         query = 'SELECT * FROM links WHERE (ida=' + str(self.activeNodeID) + \

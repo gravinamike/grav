@@ -8,12 +8,9 @@ author: Mike Gravina
 last edited: February 2017
 """
 
-from PyQt4.QtCore import(QLineF, QPointF, QSignalMapper, QString, QObject)
-from PyQt4.QtGui import(QAction, QLineEdit, QGraphicsItem, QGraphicsRectItem,
-QGraphicsEllipseItem, QMenu)
+from PyQt4 import QtCore, QtGui
 
-
-class AxisHandlePole(QGraphicsEllipseItem):
+class AxisHandlePole(QtGui.QGraphicsEllipseItem):
     # A graphical representation of one isolated polarity of an axis
 
     def __init__(self, window, name, axisDir=0, centerX=0, centerY=0,
@@ -38,16 +35,16 @@ class AxisHandlePole(QGraphicsEllipseItem):
         # Defines right-click menu and associated actions
 
         # Create the menu object
-        menu = QMenu()
+        menu = QtGui.QMenu()
 
         # Create an action for each available axis direction
         model = self.window.axisDirections.model
         self.dirActions = []
         self.signalMappers = []
         for row in range(0, model.rowCount()):
-            self.dirActions.append(QAction(
+            self.dirActions.append(QtGui.QAction(
             str(model.record(row).value('text').toString()), None))
-            self.signalMappers.append(QSignalMapper())
+            self.signalMappers.append(QtCore.QSignalMapper())
             self.dirActions[row].triggered.connect(self.signalMappers[row].map)
             self.signalMappers[row].setMapping(self.dirActions[row], row)
             self.signalMappers[row].mapped.connect(self.assignAxis)
@@ -63,7 +60,7 @@ class AxisHandlePole(QGraphicsEllipseItem):
         self.window.assignAxis(self.axisDir, assignedDir)
 
 
-class AxisHandleLong(QGraphicsRectItem):
+class AxisHandleLong(QtGui.QGraphicsRectItem):
     # A graphical representation of one polarity of an axis related to another
 
     def __init__(self, window, name, axisDir=0, centerX=0, centerY=0,
@@ -88,16 +85,16 @@ class AxisHandleLong(QGraphicsRectItem):
         # Defines right-click menu and associated actions
 
         # Create the menu object
-        menu = QMenu()
+        menu = QtGui.QMenu()
 
         # Create an action for each available axis direction
         model = self.window.axisDirections.model
         self.dirActions = []
         self.signalMappers = []
         for row in range(0, model.rowCount()):
-            self.dirActions.append(QAction(
+            self.dirActions.append(QtGui.QAction(
             str(model.record(row).value('text').toString()), None))
-            self.signalMappers.append(QSignalMapper())
+            self.signalMappers.append(QtCore.QSignalMapper())
             self.dirActions[row].triggered.connect(self.signalMappers[row].map)
             self.signalMappers[row].setMapping(self.dirActions[row], row)
             self.signalMappers[row].mapped.connect(self.assignAxisAndOpposite)

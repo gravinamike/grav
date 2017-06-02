@@ -11,6 +11,7 @@ last edited: March 2017
 """
 
 import sys
+import grav.db as db
 from PyQt4 import QtCore, QtGui
 from ext import *
 
@@ -88,6 +89,11 @@ class TextEdit(QtGui.QMainWindow):
         self.redoAction.setStatusTip("Redo last undone thing")
         self.redoAction.setShortcut("Ctrl+Y")
         self.redoAction.triggered.connect(self.text.redo)
+
+        self.hyperlinkAction = QtGui.QAction(QtGui.QIcon("icons/paste.png"),"Add hyperlink to text",self)
+        self.hyperlinkAction.setStatusTip("Add hyperlink to text")
+        self.hyperlinkAction.setShortcut("Ctrl+H")
+        self.hyperlinkAction.triggered.connect(self.setHyperlinkOnSelection)
 
         dateTimeAction = QtGui.QAction(QtGui.QIcon("icons/calender.png"),"Insert current date/time",self)
         dateTimeAction.setStatusTip("Insert current date/time")
@@ -269,6 +275,7 @@ class TextEdit(QtGui.QMainWindow):
         edit.addAction(self.copyAction)
         edit.addAction(self.pasteAction)
         edit.addAction(self.findAction)
+        edit.addAction(self.hyperlinkAction)
 
         # Toggling actions for the various bars
         toolbarAction = QtGui.QAction("Toggle Toolbar",self)
@@ -287,6 +294,16 @@ class TextEdit(QtGui.QMainWindow):
     def initUI(self):
 
         self.text = QtGui.QTextBrowser(self)
+
+        # Set the text browser to be non-editable and undoable
+        self.text.setReadOnly(True)
+        self.text.setUndoRedoEnabled(True)
+
+        # Set the text browser to automatically open external links and
+        # navigate to internally-linked nodes
+        self.text.setOpenLinks(False)
+        #self.text.setOpenExternalLinks(True)
+        self.text.anchorClicked.connect(self.on_anchor_clicked)
 
         # Set the tab stop width to around 33 pixels which is
         # more or less 8 spaces
@@ -354,6 +371,9 @@ class TextEdit(QtGui.QMainWindow):
 
             else:
                 event.ignore()
+
+    def setReadOnly(self):
+        self.text.setReadOnly(not self.text.isReadOnly())
 
     def context(self,pos):
 
@@ -649,6 +669,8 @@ class TextEdit(QtGui.QMainWindow):
 
     def bold(self):
 
+        print self.text.textCursor().charFormat().fontWeight()
+        print self.text.fontWeight(), QtGui.QFont.Bold
         if self.text.fontWeight() == QtGui.QFont.Bold:
 
             self.text.setFontWeight(QtGui.QFont.Normal)
@@ -831,3 +853,51 @@ class TextEdit(QtGui.QMainWindow):
 
         # Insert list with numbers
         cursor.insertList(QtGui.QTextListFormat.ListDecimal)
+
+    def setHyperlinkOnSelection(self):
+
+        url=QtCore.QString('http://www.google.com')
+
+        #cursor = self.text.textCursor()
+        #if not cursor.hasSelection():
+        #    return False
+        #format = QtGui.QTextCharFormat()
+        #format.setAnchor(True)
+        #format.setAnchorHref(url)
+        #cursor.mergeBlockCharFormat(format)
+        #return True
+
+
+        # Grab the text's format
+        fmt = self.text.currentCharFormat()
+
+        # Set the format to an anchor with the specified url
+        fmt.setAnchor(True)
+        fmt.setAnchorHref(url)
+
+        # And set the next char format
+        self.text.setCurrentCharFormat(fmt)
+
+    def on_anchor_clicked(self, url):
+
+        isFileScheme = (url.scheme() == QtCore.QLatin1String("file")) or \
+        (url.scheme() == QtCore.QLatin1String("qrc"))
+        isBrainScheme = (url.scheme() == QtCore.QLatin1String("brain"))
+
+        if ((not url.isRelative()) and (not isFileScheme) and (not isBrainScheme)):
+            QtGui.QDesktopServices.openUrl(url)
+        elif ((not url.isRelative()) and (isBrainScheme)):
+            self.text.setSource(QtCore.QUrl())
+            urlString = url.toString()
+            GUIDs = urlString.replace('brain://','').split('/')
+            brainGUID, nodeGUID = str(GUIDs[0]).upper(), GUIDs[1]
+            #Check against the database GUID
+            brainModel = db.BrainModel(brainGUID)
+            if brainModel.model.rowCount() == 0:
+                print 'Clicked node link does not lead to a node in this Brain!'
+            else:
+                nodeID = db.NodeDBModel(None, nodeGUID).nodeID
+                self.window.setActiveNode(nodeID)
+        else:
+            self.text.setSource(QtCore.QUrl())
+            print 'Error: Link scheme not recognized:', url.toString()

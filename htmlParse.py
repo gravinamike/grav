@@ -9,12 +9,13 @@ author: Mike Gravina
 last edited: February 2017
 """
 
-from PyQt4.QtCore import QString
+from PyQt4 import QtCore
 
 
 def htmlParse(html):
 
-    html = str(html)
+    #html = str(html)######################################################################## Work all this in Unicode
+    html = html
     elements = []
     chars = ''
     previousChar = ''
@@ -44,7 +45,7 @@ def htmlParse(html):
         previousChar = char
 
     elements = elements[1:]
-    parsed = QString('')
+    parsed = QtCore.QString('')
     for element in elements:
         parsed = parsed + element[0]
 

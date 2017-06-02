@@ -9,12 +9,9 @@ last edited: December 2016
 """
 
 import grav.db as db
-from PyQt4.QtCore import(Qt, QLineF, QPointF, QSignalMapper, QMimeData, QString)
-from PyQt4.QtGui import(QAction, QLineEdit, QGraphicsItem, QGraphicsRectItem,
-QGraphicsEllipseItem, QGraphicsLineItem, QMenu, QDrag, QPen, QCursor, qApp)
-from PyQt4 import QtGui
+from PyQt4 import QtCore, QtGui
 
-class NodeImg(QGraphicsRectItem):
+class NodeImg(QtGui.QGraphicsRectItem):
     # A graphical representation of a node, referring to a database model which
     # defines text and links with other nodes. Adds connecting-lines
     # functionality to basic rectangle graphic class
@@ -60,12 +57,12 @@ class NodeImg(QGraphicsRectItem):
 
     def itemChange(self, change, value):
         # Reinstantiates itemChange method to call endpoint-mover method
-        if (change == QGraphicsItem.ItemPositionChange):
+        if (change == QtGui.QGraphicsItem.ItemPositionChange):
             newPos = value.toPointF()
             for lineName, line in self.lines.iteritems():
                 self.moveLineEndpoint(newPos, lineName,
                 line.nodeAtWhichEnd[self.name])
-        return QGraphicsItem.itemChange(self, change, value)
+        return QtGui.QGraphicsItem.itemChange(self, change, value)
 
     def moveLineEndpoint(self, newPos, lineName, p1orP2):
         # Moves line endpoint when associated node is moved
@@ -79,16 +76,16 @@ class NodeImg(QGraphicsRectItem):
             dirAnchor = dirAnchors[self.lines[lineName].dirFromNodeP2]
         xOffset = self.centerX + dirAnchor.xOffset
         yOffset = self.centerY + dirAnchor.yOffset
-        newMovingPointPos = QPointF(newPos.x()+xOffset, newPos.y()+yOffset)
+        newMovingPointPos = QtCore.QPointF(newPos.x()+xOffset, newPos.y()+yOffset)
 
         # Sets line geometry depending on which point is being moved
         if p1orP2 == 'p1':
             stayingPointPos = self.lines[lineName].line().p2()
-            self.lines[lineName].setLine(QLineF(newMovingPointPos,
+            self.lines[lineName].setLine(QtCore.QLineF(newMovingPointPos,
             stayingPointPos))
         elif p1orP2 == 'p2':
             stayingPointPos = self.lines[lineName].line().p1()
-            self.lines[lineName].setLine(QLineF(stayingPointPos,
+            self.lines[lineName].setLine(QtCore.QLineF(stayingPointPos,
             newMovingPointPos))
 
     def mouseDoubleClickEvent(self, event):
@@ -100,24 +97,24 @@ class NodeImg(QGraphicsRectItem):
         # Defines right-click menu and associated actions
 
         # Create the menu object
-        menu = QMenu()
+        menu = QtGui.QMenu()
 
         # A test action
-        testAction = QAction('Test', None)
+        testAction = QtGui.QAction('Test', None)
         testAction.triggered.connect(self.print_out)
         menu.addAction(testAction)
 
         # Action to add a pin
-        self.addPinAction = QAction('Add to pins', None)
-        signalMapper1 = QSignalMapper()
+        self.addPinAction = QtGui.QAction('Add to pins', None)
+        signalMapper1 = QtCore.QSignalMapper()
         self.addPinAction.triggered.connect(signalMapper1.map)
         signalMapper1.setMapping(self.addPinAction, int(self.nodeID))
         signalMapper1.mapped.connect(self.window.addPin)
         menu.addAction(self.addPinAction)
 
         # Action to delete this node
-        self.deleteAction = QAction('Delete node', None)
-        signalMapper2 = QSignalMapper()
+        self.deleteAction = QtGui.QAction('Delete node', None)
+        signalMapper2 = QtCore.QSignalMapper()
         self.deleteAction.triggered.connect(signalMapper2.map)
         signalMapper2.setMapping(self.deleteAction, int(self.nodeID))
         signalMapper2.mapped.connect(self.window.brain.deleteRelation)
@@ -131,7 +128,7 @@ class NodeImg(QGraphicsRectItem):
         print 'Triggered', str(self.nodeID)
 
 
-class Anchor(QGraphicsEllipseItem):
+class Anchor(QtGui.QGraphicsEllipseItem):
     # Defines an anchor for the node with two offsets
 
     def __init__(self, window, node, dir, xOffset, yOffset):
@@ -141,7 +138,7 @@ class Anchor(QGraphicsEllipseItem):
         self.dir = dir
         oppositeDirs = {1: 2, 2: 1, 3: 4, 4: 3}
         self.oppositeDir = oppositeDirs[self.dir]
-        self.direction = self.window.axisAssignments[str(self.dir)]
+        self.direction = self.window.axisAssignments[self.dir]
         self.xOffset = xOffset
         self.yOffset = yOffset
         self.dragLink = None
@@ -163,23 +160,23 @@ class Anchor(QGraphicsEllipseItem):
         # form a new link with mouseReleaseEvent
 
         # Screen out all but left-click movements
-        if event.buttons() != Qt.LeftButton:
+        if event.buttons() != QtCore.Qt.LeftButton:
             return
 
         # If beginning a drag, create a new line and circle
         if self.dragLink == None:
             self.dragLink = self.window.sceneNetwork.addLine(
                 self.scenePos().x(), self.scenePos().y(), event.scenePos().x(),
-                event.scenePos().y(), QPen(Qt.black, 1, Qt.SolidLine)
+                event.scenePos().y(), QtGui.QPen(QtCore.Qt.black, 1, QtCore.Qt.SolidLine)
             )
-            self.dragCircle = QGraphicsEllipseItem(-5, -5, 10, 10)
+            self.dragCircle = QtGui.QGraphicsEllipseItem(-5, -5, 10, 10)
             self.dragCircle.setPos(event.scenePos().x(),
             event.scenePos().y())
             self.window.sceneNetwork.addItem(self.dragCircle)
         # If a drag is in progress...
         else:
             # ...move the existing line and circle to the mouse cursor
-            self.dragLink.setLine(QLineF(self.scenePos().x(), self.scenePos().y(),
+            self.dragLink.setLine(QtCore.QLineF(self.scenePos().x(), self.scenePos().y(),
             event.scenePos().x(), event.scenePos().y()))
             self.dragCircle.setPos(event.scenePos().x(),
             event.scenePos().y())
@@ -216,7 +213,7 @@ class Anchor(QGraphicsEllipseItem):
             self.dragCircle = None
 
 
-class RelationshipImg(QGraphicsLineItem):################################################ BEGIN WRITING CUSTOM LINE CLASS THAT CAN BE DELETED, then make window.py both instantiate and add to scene
+class RelationshipImg(QtGui.QGraphicsLineItem):
     # A graphical representation of a relationship, referring to a database
     # model which defines relationship information.
 
@@ -251,16 +248,16 @@ class RelationshipImg(QGraphicsLineItem):#######################################
         # Defines right-click menu and associated actions
 
         # Create the menu object
-        menu = QMenu()
+        menu = QtGui.QMenu()
 
         # A test action
-        testAction = QAction('Test', None)
+        testAction = QtGui.QAction('Test', None)
         testAction.triggered.connect(self.print_out)
         menu.addAction(testAction)
 
-        # Action to delete this link and opposite ################################################ IT JUST DOESN'T SEND QSTRINGS
-        self.deleteAction = QAction('Delete relationship', None)
-        signalMapper = QSignalMapper()
+        # Action to delete this link and opposite
+        self.deleteAction = QtGui.QAction('Delete relationship', None)
+        signalMapper = QtCore.QSignalMapper()
         self.deleteAction.triggered.connect(signalMapper.map)
         signalMapper.setMapping(self.deleteAction, self.linkID_forward)
         signalMapper.mapped.connect(self.window.brain.deleteRelationships)
