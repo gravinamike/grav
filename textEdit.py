@@ -12,6 +12,7 @@ last edited: March 2017
 
 import sys
 import grav.db as db
+import grav.networkPortal
 from PyQt4 import QtCore, QtGui
 from ext import *
 
@@ -94,6 +95,11 @@ class TextEdit(QtGui.QMainWindow):
         self.hyperlinkAction.setStatusTip("Add hyperlink to text")
         self.hyperlinkAction.setShortcut("Ctrl+H")
         self.hyperlinkAction.triggered.connect(self.setHyperlinkOnSelection)
+
+        self.nodeLinkAction = QtGui.QAction(QtGui.QIcon("icons/paste.png"),"Add node link to text",self)
+        self.nodeLinkAction.setStatusTip("Add node link to text")
+        self.nodeLinkAction.setShortcut("Ctrl+H")
+        self.nodeLinkAction.triggered.connect(self.setNodeLinkOnSelection)
 
         dateTimeAction = QtGui.QAction(QtGui.QIcon("icons/calender.png"),"Insert current date/time",self)
         dateTimeAction.setStatusTip("Insert current date/time")
@@ -276,6 +282,7 @@ class TextEdit(QtGui.QMainWindow):
         edit.addAction(self.pasteAction)
         edit.addAction(self.findAction)
         edit.addAction(self.hyperlinkAction)
+        edit.addAction(self.nodeLinkAction)
 
         # Toggling actions for the various bars
         toolbarAction = QtGui.QAction("Toggle Toolbar",self)
@@ -856,17 +863,29 @@ class TextEdit(QtGui.QMainWindow):
 
     def setHyperlinkOnSelection(self):
 
-        url=QtCore.QString('http://www.google.com')
+        # Display input box querying for link url
+        entry, ok = QtGui.QInputDialog.getText(None, 'Enter url for link:',
+        'Link url:', QtGui.QLineEdit.Normal, '')
 
-        #cursor = self.text.textCursor()
-        #if not cursor.hasSelection():
-        #    return False
-        #format = QtGui.QTextCharFormat()
-        #format.setAnchor(True)
-        #format.setAnchorHref(url)
-        #cursor.mergeBlockCharFormat(format)
-        #return True
+        # Detect invalid names and abort (return) method if necessary
+        if ok and not entry == '':
+            if str(entry).startswith('http://'):
+                url = QtCore.QString(entry)
+            else:
+                # Display input box querying whether to add http formatting
+                confirm = QtGui.QMessageBox.question(None, 'Format link for \
+                web?', 'Append \'http://\' to link?', QtGui.QMessageBox.Yes,
+                QtGui.QMessageBox.No)
 
+                # Either format for the web or don't
+                if confirm == QtGui.QMessageBox.Yes:
+                    url = 'http://' + entry
+                elif confirm == QtGui.QMessageBox.No:
+                    url = entry
+                else:
+                    return
+        else:
+            return
 
         # Grab the text's format
         fmt = self.text.currentCharFormat()
@@ -878,7 +897,52 @@ class TextEdit(QtGui.QMainWindow):
         # And set the next char format
         self.text.setCurrentCharFormat(fmt)
 
+    def setNodeLinkOnSelection(self):
+
+        if len(str(self.text.textCursor().selectedText())) == 0:
+            return
+
+        viewRect = self.window.viewNetwork.mapToScene(self.window.viewNetwork.viewport().geometry()).boundingRect()
+        posX = viewRect.x() + viewRect.width()/2
+        posY = viewRect.y() + viewRect.height()/2
+
+        # Capture the cursor information
+        self.cursorStart = self.text.textCursor().selectionStart()
+        self.cursorEnd = self.text.textCursor().selectionEnd()
+
+        # Instantiate a remote link portal
+        grav.networkPortal.remoteLinkInterface(self.window, posX, posY)
+
+    def setNodeLinkOnSelection_postSignal(self, nodeID):
+
+        # Reintantiate the cursor
+        cursor = self.text.textCursor() #boo
+        cursor.setPosition(self.cursorStart)
+        cursor.setPosition(self.cursorEnd, QtGui.QTextCursor.KeepAnchor)
+        self.text.setTextCursor(cursor)
+
+        # Construct the url
+        brainGUID = db.BrainModel().model.record(0).value('GUID').toString()
+        nodeGUID = db.NodeDBModel(nodeID).model.record(0).value(
+        'GUID').toString()
+        url = 'brain://' + brainGUID + '/' + nodeGUID
+
+        # Grab the text's format
+        fmt = self.text.currentCharFormat()
+
+        # Set the format to an anchor with the specified url
+        fmt.setAnchor(True)
+        fmt.setAnchorHref(url)
+
+        # And set the next char format
+        self.text.setCurrentCharFormat(fmt)
+
+        # Save notes
+        self.window.saveNotes
+
     def on_anchor_clicked(self, url):
+        # Defines behavior when an html anchor is clicked: either open the
+        # external link, or open the internal node.
 
         isFileScheme = (url.scheme() == QtCore.QLatin1String("file")) or \
         (url.scheme() == QtCore.QLatin1String("qrc"))
@@ -896,8 +960,8 @@ class TextEdit(QtGui.QMainWindow):
             if brainModel.model.rowCount() == 0:
                 print 'Clicked node link does not lead to a node in this Brain!'
             else:
-                nodeID = db.NodeDBModel(None, nodeGUID).nodeID
-                self.window.setActiveNode(nodeID)
+                nodeID = db.NodeDBModel(nodeGUID=nodeGUID).nodeID
+                self.window.viewNetwork.setActiveNode(nodeID)
         else:
             self.text.setSource(QtCore.QUrl())
             print 'Error: Link scheme not recognized:', url.toString()

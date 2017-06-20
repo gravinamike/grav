@@ -236,7 +236,7 @@ class Brain:
 
         # Execute queries, then refresh the network view
         queries = self.querySet(queryTexts)
-        self.window.setActiveNode(self.window.activeNodeID)
+        self.window.viewNetwork.setActiveNode()
 
     def deleteRelation(self, nodeID):
         # Delete a node and all its relations.
@@ -277,7 +277,7 @@ class Brain:
 
             # Execute queries, then refresh the network view
             queries = self.querySet(queryTexts)
-            self.window.setActiveNode(self.window.activeNodeID)
+            self.window.viewNetwork.setActiveNode()
         else:
             print 'Canceled...'
 
@@ -354,7 +354,7 @@ class Brain:
 
             # Execute queries, then refresh the network view
             queries = self.querySet(queryTexts)
-            self.window.setActiveNode(self.window.activeNodeID)
+            self.window.viewNetwork.setActiveNode()
         else:
             print 'Canceled...'
 
@@ -379,7 +379,7 @@ class Brain:
 
             # Execute queries, then refresh the network view
             queries = self.querySet(queryTexts)
-            self.window.setActiveNode(self.window.activeNodeID)
+            self.window.viewNetwork.setActiveNode()
 
         else:
             print 'Canceled...'
@@ -463,10 +463,13 @@ class Brain:
 
 class BrainModel:
     #A read-write model based on a SQL query on the BRAINS table
-    def __init__(self, GUID):
+    def __init__(self, GUID=None):
         self.model = QtSql.QSqlQueryModel()
         # Define and execute query
-        query = 'SELECT * FROM brains WHERE guid=\'' + str(GUID) + '\''
+        if GUID != None:
+            query = 'SELECT * FROM brains WHERE guid=\'' + str(GUID) + '\''
+        else:
+            query = 'SELECT * FROM brains'
         self.model.setQuery(query)
 
 
@@ -486,19 +489,25 @@ class AxisDirectionsDBModel:
 
 class NodeDBModel:
     #A read-write model based on a SQL query on the THOUGHTS table
-    def __init__(self, nodeID=1, nodeGUID=None):
+    def __init__(self, nodeID=None, nodeGUID=None, nodeName=None):
         listNumber = False
+
+        if not (nodeID or nodeGUID or nodeName):
+            print 'Error! No information entered for query!'
+            return
 
         # Define and execute query
         self.model = QtSql.QSqlQueryModel()
-        if nodeGUID == None:
-            query = 'SELECT * FROM thoughts WHERE id=' + str(nodeID)
-            self.nodeID = nodeID
-        else:
-            query = 'SELECT * FROM thoughts WHERE guid=\'' + str(nodeGUID) + '\''
+        queryArgs = [nodeID, nodeGUID, nodeName]
+        queryParts = ['id=%s' % str(nodeID), 'guid=\'%s\'' % str(nodeGUID),
+        'name=\'%s\'' % str(nodeName)]
+        query = 'SELECT * FROM thoughts WHERE ' + ' and '.join(
+        [queryParts[i] for i in range(len(queryArgs)) if queryArgs[i] != None])
         self.model.setQuery(query)
-        if nodeGUID != None:
+        if self.model.rowCount() != 0:
             self.nodeID = str(self.model.record(0).value('id').toString())
+        else:
+            self.nodeID = None
 
 
 class NotesDBModel:

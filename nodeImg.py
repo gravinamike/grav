@@ -9,7 +9,11 @@ last edited: December 2016
 """
 
 import grav.db as db
+import grav.window # Absolute import to avoid circularities with window
+import grav.signaler
+import grav.networkPortal # Absolute import to avoid circularities with window
 from PyQt4 import QtCore, QtGui
+
 
 class NodeImg(QtGui.QGraphicsRectItem):
     # A graphical representation of a node, referring to a database model which
@@ -22,9 +26,11 @@ class NodeImg(QtGui.QGraphicsRectItem):
         super(NodeImg, self).__init__(centerX-width/2, centerY-height/2, width,
         height)
 
+        self.signaler = grav.signaler.Signaler()
+
         # Define basic attributes of node graphic
         self.name = name
-        self.nodeID = nodeID
+        self.nodeID = int(nodeID)
         self.dir = dir
         self.window = window
 
@@ -64,6 +70,14 @@ class NodeImg(QtGui.QGraphicsRectItem):
                 line.nodeAtWhichEnd[self.name])
         return QtGui.QGraphicsItem.itemChange(self, change, value)
 
+    def mouseMoveEvent(self, event):
+        # Reimplements mouseMoveEvent so it can be disabled by role
+
+        if not (hasattr(self.scene(), 'role') and self.scene().role == 'main'):
+            return
+
+        QtGui.QGraphicsItem.mouseMoveEvent(self, event)
+
     def moveLineEndpoint(self, newPos, lineName, p1orP2):
         # Moves line endpoint when associated node is moved
 
@@ -88,13 +102,27 @@ class NodeImg(QtGui.QGraphicsRectItem):
             self.lines[lineName].setLine(QtCore.QLineF(stayingPointPos,
             newMovingPointPos))
 
+    def mousePressEvent(self, event):
+        # Reimplements method so it can be redirected to a node-selector role
+        if (hasattr(self.scene(), 'role') and self.scene().role == 'select'):
+            self.signaler.select.emit(self.window, int(self.nodeID))
+        else:
+            QtGui.QGraphicsItem.mousePressEvent(self, event)
+
     def mouseDoubleClickEvent(self, event):
         # On double-click, sets the node as active and increments history
-        self.window.setActiveNode(self.nodeID)
+
+        if not (hasattr(self.scene(), 'role') and self.scene().role == 'main'):
+            return
+
+        self.window.viewNetwork.setActiveNode(self.nodeID)
         self.window.addHistoryNode(self.nodeID)
 
     def contextMenuEvent(self, event):
         # Defines right-click menu and associated actions
+
+        if not (hasattr(self.scene(), 'role') and self.scene().role == 'main'):
+            return
 
         # Create the menu object
         menu = QtGui.QMenu()
@@ -139,10 +167,13 @@ class Anchor(QtGui.QGraphicsEllipseItem):
         oppositeDirs = {1: 2, 2: 1, 3: 4, 4: 3}
         self.oppositeDir = oppositeDirs[self.dir]
         self.direction = self.window.axisAssignments[self.dir]
+        self.oppositeDirection = self.window.axisAssignments[self.oppositeDir]
         self.xOffset = xOffset
         self.yOffset = yOffset
+
         self.dragLink = None
         self.dragCircle = None
+        self.dialogPortal = None
 
         # Initialization from superclass and call to class constructor
         super(Anchor, self).__init__(-5, -5, 10, 10)
@@ -153,11 +184,16 @@ class Anchor(QtGui.QGraphicsEllipseItem):
 
     def mouseDoubleClickEvent(self, event):
         # On double-click, open dialog to create a new relation node
+        if not (hasattr(self.scene(), 'role') and self.scene().role == 'main'):
+            return
         self.window.brain.createRelation(self.node.nodeID, self.direction, None)
 
     def mouseMoveEvent(self, event):
         # Reimplements mouseMoveEvent to drag out a line which can be used to
         # form a new link with mouseReleaseEvent
+
+        if not (hasattr(self.scene(), 'role') and self.scene().role == 'main'):
+            return
 
         # Screen out all but left-click movements
         if event.buttons() != QtCore.Qt.LeftButton:
@@ -165,26 +201,28 @@ class Anchor(QtGui.QGraphicsEllipseItem):
 
         # If beginning a drag, create a new line and circle
         if self.dragLink == None:
-            self.dragLink = self.window.sceneNetwork.addLine(
+            self.dragLink = self.window.viewNetwork.scene().addLine(
                 self.scenePos().x(), self.scenePos().y(), event.scenePos().x(),
-                event.scenePos().y(), QtGui.QPen(QtCore.Qt.black, 1, QtCore.Qt.SolidLine)
+                event.scenePos().y(), QtGui.QPen(QtCore.Qt.black, 1,
+                QtCore.Qt.SolidLine)
             )
             self.dragCircle = QtGui.QGraphicsEllipseItem(-5, -5, 10, 10)
             self.dragCircle.setPos(event.scenePos().x(),
             event.scenePos().y())
-            self.window.sceneNetwork.addItem(self.dragCircle)
+            self.window.viewNetwork.scene().addItem(self.dragCircle)
         # If a drag is in progress...
         else:
             # ...move the existing line and circle to the mouse cursor
-            self.dragLink.setLine(QtCore.QLineF(self.scenePos().x(), self.scenePos().y(),
-            event.scenePos().x(), event.scenePos().y()))
+            self.dragLink.setLine(QtCore.QLineF(self.scenePos().x(),
+            self.scenePos().y(), event.scenePos().x(), event.scenePos().y()))
             self.dragCircle.setPos(event.scenePos().x(),
             event.scenePos().y())
             # ...if you did move the line and circle, if there is an
             # opposite anchor under the mouse, make the lasso circle bigger,
             # otherwise make it small
             anchor = False
-            for x in self.window.sceneNetwork.collidingItems(self.dragCircle):
+            for x in self.window.viewNetwork.scene().collidingItems(
+            self.dragCircle):
                 if isinstance(x, Anchor):
                     anchor = x
             if anchor and anchor.dir == self.oppositeDir:
@@ -196,21 +234,54 @@ class Anchor(QtGui.QGraphicsEllipseItem):
         # If in a mouse drag from mouseMoveEvent, and hovering over a node's
         # anchor, makes a link from one node to another.
 
+        # Limit this method to 'main' neetwork-portal role
+        if not (hasattr(self.scene(), 'role') and self.scene().role == 'main'):
+            return
+
         # If the line already exists,
         if self.dragLink != None:
 
             # If there is an anchor under the mouse, call the linkgen method
-            for x in self.window.sceneNetwork.collidingItems(self.dragCircle):
+            # and then clean up the link drag graphics
+            for x in self.window.viewNetwork.scene().collidingItems(
+            self.dragCircle):
                 if isinstance(x, Anchor):
                     anchor = x
                     self.window.brain.createRelationship(self.node.nodeID,
                     self.direction, anchor.node.nodeID, anchor.direction, None)
+                    self.window.viewNetwork.scene().removeItem(self.dragLink)
+                    self.dragLink = None
+                    self.window.viewNetwork.scene().removeItem(self.dragCircle)
+                    self.dragCircle = None
+                    return
 
-            # Remove the line and circle now that the mouse is released
-            self.window.sceneNetwork.removeItem(self.dragLink)
-            self.dragLink = None
-            self.window.sceneNetwork.removeItem(self.dragCircle)
-            self.dragCircle = None
+            # If the mouse is released over no anchor, animate circle
+            # then call methods to end drag and start remote link dialog
+            self.tl = QtCore.QTimeLine(200)
+            self.tl.setFrameRange(0, 100)
+            self.a = QtGui.QGraphicsItemAnimation()
+            self.a.setItem(self.dragCircle)
+            self.a.setTimeLine(self.tl)
+            self.a.setScaleAt(0, 1, 1)
+            self.a.setScaleAt(1, 50, 50)
+            self.tl.finished.connect(self.signalForPortal)
+            self.tl.start()
+
+    def signalForPortal(self):
+        # Essentially a QSignalMapper, but set up using custom signals to avoid
+        # the shortfalls of that class for multiple arguments
+        signaler = grav.signaler.Signaler()
+        signaler.portalInit.connect(grav.networkPortal.remoteLinkInterface)
+        signaler.portalInit.emit(self, int(self.dragCircle.x()),
+        int(self.dragCircle.y()))
+        self.removeLinkDragGraphics()
+
+    def removeLinkDragGraphics(self):
+        # Clean up link drag graphics
+        self.window.viewNetwork.scene().removeItem(self.dragLink)
+        self.dragLink = None
+        self.window.viewNetwork.scene().removeItem(self.dragCircle)
+        self.dragCircle = None
 
 
 class RelationshipImg(QtGui.QGraphicsLineItem):
@@ -242,10 +313,15 @@ class RelationshipImg(QtGui.QGraphicsLineItem):
 
     def mouseDoubleClickEvent(self, event):
         # On double-click...
+        if not (hasattr(self.scene(), 'role') and self.scene().role == 'main'):
+            return
         pass
 
     def contextMenuEvent(self, event):
         # Defines right-click menu and associated actions
+
+        if not (hasattr(self.scene(), 'role') and self.scene().role == 'main'):
+            return
 
         # Create the menu object
         menu = QtGui.QMenu()

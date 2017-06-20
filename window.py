@@ -12,7 +12,8 @@ last edited: April 2017
 import sys
 import math
 import grav.db as db
-from grav import axes, htmlParse, nodeImg, textEdit
+import grav.nodeImg # Absolute import to avoid circularities with nodeImg
+from grav import axes, htmlParse, networkPortal, textEdit
 from PyQt4 import QtCore, QtGui
 
 
@@ -24,8 +25,10 @@ class Window(QtGui.QMainWindow):
         # Initialize Brain database
         self.brain = db.Brain(self)
 
+        self.linkPortal = None
+
         # Set active node of network, pin nodes, history nodes
-        self.activeNodeID = 30
+        self.startingNodeID = 30
         self.pinNodeIDs = []
         self.historyNodeIDs = []
         # Set relationship directions to each view axis, and their opposites
@@ -65,11 +68,10 @@ class Window(QtGui.QMainWindow):
         self.statusBar().showMessage('Ready')
 
         # Create network scene, view and element lists for later deletion
-        self.sceneNetwork = QtGui.QGraphicsScene()
-        self.view = QtGui.QGraphicsView(self.sceneNetwork)
-        self.view.setMinimumWidth(800)
-        self.view.setMinimumHeight(600)
-        self.networkElements = []
+        self.viewNetwork = networkPortal.NetworkPortal(self,
+        self.startingNodeID)
+        self.viewNetwork.setMinimumWidth(800)
+        self.viewNetwork.setMinimumHeight(600)
         self.directionElements = []
 
         # Create pin scene/view
@@ -133,7 +135,7 @@ class Window(QtGui.QMainWindow):
         # Network pane
         viewPane = QtGui.QVBoxLayout()
         viewPane.addWidget(self.viewPins)
-        viewPane.addWidget(self.view)
+        viewPane.addWidget(self.viewNetwork)
         viewPane.addWidget(self.viewHistory)
         # Notes pane
         notesPane = QtGui.QVBoxLayout()
@@ -158,7 +160,7 @@ class Window(QtGui.QMainWindow):
         self.setCentralWidget(stretchBox)
 
         # Display the network, pins, history and direction-selector
-        self.setActiveNode(nodeID=self.activeNodeID)
+        self.viewNetwork.setActiveNode(nodeID=self.startingNodeID)
         self.renderPins()
         self.historyNodeImgs = []
         self.renderDirections(self.sceneDirections)
@@ -171,7 +173,7 @@ class Window(QtGui.QMainWindow):
         self.axisAssignments[axisDir] = assignedDir
         self.getAxisAssignmentOpposites()
         self.renderDirections(self.sceneDirections)
-        self.setActiveNode(self.activeNodeID)
+        self.viewNetwork.setActiveNode()
 
     def assignAxisAndOpposite(self, axisDir, assignedDir, oppositeDir):
         # Assigns a bidirectional axis of the view to a database direction and
@@ -181,7 +183,7 @@ class Window(QtGui.QMainWindow):
         self.axisAssignments[axisOppositeDirs[axisDir]] = oppositeDir
         self.getAxisAssignmentOpposites()
         self.renderDirections(self.sceneDirections)
-        self.setActiveNode(self.activeNodeID)
+        self.viewNetwork.setActiveNode()
 
     def getAxisAssignmentOpposites(self):
         # Sets dictionary of direction-axis assignments
@@ -254,293 +256,9 @@ class Window(QtGui.QMainWindow):
             text.setPos(axisTexts[key][1], axisTexts[key][2])
             text.rotate(axisTexts[key][3])
 
-    def setActiveNode(self, nodeID=1):
-        # Set the active node and re-display the network accordingly
-
-        # Reassign active node ID
-        self.activeNodeID = nodeID
-
-        # Remove the old network, refresh element list, and render everything
-        self.removeImgSet(self.networkElements, self.sceneNetwork)
-        self.networkElements = []
-        self.renderNetwork(dirs=[1, 2, 3, 4])
-        self.renderNotes()
-
-    def renderNetwork(self, dirs=[1, 2, 3, 4]):
-        # Render the node network on the main view
-
-        centerList = [[500, 500]]
-        nodeList = [None]
-        ringCount = 3
-        self.activeLinkNodeIDs = []
-        self.activeLinkNodeImgs = []
-        self.oppositeLinkIDs = {}
-
-        for ring in range(0, ringCount):
-
-            nextCenterList = []
-            nextNodeList = []
-
-            length = len(centerList)
-            for i in range(0, length):
-                centerCoords = centerList[i]
-                centerNode = nodeList[i]
-                newCenters, newNodeIDs, nodeImgs = self.renderOneRing(
-                centerCoords, centerNode, ring)
-                nextCenterList.extend(newCenters)
-                nextNodeList.extend(nodeImgs)
-
-            centerList = nextCenterList
-            nodeList = nextNodeList
-
-            nextCenterList = []
-            nextNodeList = []
-
-        length = len(centerList)
-        for i in range(0, length):
-            centerCoords = centerList[i]
-            centerNode = nodeList[i]
-            self.renderLastLinksRing(centerCoords, centerNode)
-        self.sceneNetwork.update()
-
-    def renderOneRing(self, centerCoords, focusNodeImg, ring):
-        # Render a single ring of relations around a central node
-
-        if ring == 0:
-            focusNodeID = self.activeNodeID
-        else:
-            focusNodeID = focusNodeImg.nodeID
-
-        # Create destNodeID and relationship lists for each direction from the
-        # active node
-        destNodeIDs_dir0 = [focusNodeID]
-        linkIDs_forward_dir0, linkIDs_reverse_dir0 = [None], [None]
-
-        activeLinks_dir1 = db.LinksDBModel(self, focusNodeID,
-        dirs=[self.axisAssignments[1]])
-        destNodeIDs_dir1 = activeLinks_dir1.destNodeIDs()
-        linkIDs_forward_dir1, linkIDs_reverse_dir1 = activeLinks_dir1.linkIDs()
-
-        activeLinks_dir2 = db.LinksDBModel(self, focusNodeID,
-        dirs=[self.axisAssignments[2]])
-        destNodeIDs_dir2 = activeLinks_dir2.destNodeIDs()
-        linkIDs_forward_dir2, linkIDs_reverse_dir2 = activeLinks_dir2.linkIDs()
-
-        activeLinks_dir3 = db.LinksDBModel(self, focusNodeID,
-        dirs=[self.axisAssignments[3]])
-        destNodeIDs_dir3 = activeLinks_dir3.destNodeIDs()
-        linkIDs_forward_dir3, linkIDs_reverse_dir3 = activeLinks_dir3.linkIDs()
-
-        activeLinks_dir4 = db.LinksDBModel(self, focusNodeID,
-        dirs=[self.axisAssignments[4]])
-        destNodeIDs_dir4 = activeLinks_dir4.destNodeIDs()
-        linkIDs_forward_dir4, linkIDs_reverse_dir4 = activeLinks_dir4.linkIDs()
-
-        # Set network geometry
-        networkCenterX = centerCoords[0]
-        networkCenterY = centerCoords[1]
-        relationOrbit = 200
-
-        # Add relation node/link images into the scene for each axis direction
-        axisDirectionMultipliers = {'0': ['X', 0, 0], '1': ['X', 0, 1],
-        '2': ['X', 0, -1], '3': ['Y', 1, 0], '4': ['Y', -1, 0]}
-        ringLinkNodeIDs = []
-        activeLinkNodeCenters = []
-        ringLinkNodeImgs = {}
-        linkNodeImgs_all = []
-
-        if ring == 0:
-            axisDirSet = [0]
-        else:
-            axisDirSet = [1, 2, 3, 4]
-
-        for axisDir in axisDirSet:
-            # Add node images into the scene for this axis direction
-            linkNodeImgs_thisAxisDir = []
-            destNodeIDs = eval('destNodeIDs_dir'+str(axisDir))
-            linkIDs_forward = eval('linkIDs_forward_dir'+str(axisDir))
-            linkIDs_reverse = eval('linkIDs_reverse_dir'+str(axisDir))
-            startLimitAxis, xSign, ySign = axisDirectionMultipliers[str(
-            axisDir)]
-
-            for i in range(len(destNodeIDs)):
-                if startLimitAxis == 'X':
-                    relationStartLimit = networkCenterX - \
-                    self.nodeImgWidth*0.55*(len(destNodeIDs)-1)
-                    centerX = relationStartLimit + self.nodeImgWidth*1.1*i
-                    centerY = networkCenterY + ySign*relationOrbit
-                elif startLimitAxis == 'Y':
-                    relationStartLimit = networkCenterY - \
-                    self.nodeImgHeight*0.55*(len(destNodeIDs)-1)
-                    centerX = networkCenterX + xSign*relationOrbit
-                    centerY = relationStartLimit + self.nodeImgHeight*1.1*i
-
-                if int(destNodeIDs[i]) in self.activeLinkNodeIDs:
-                    # If the node already exists on the graph, pass
-                    pass
-                else:
-                    # If the node doesn't exist on the graph yet, create the
-                    # node image
-                    linkNodeImg = self.addNode(
-                        name='activeLinkNodeImg_ring'+str(ring)+'_dir'+\
-                        str(axisDir)+'_'+str(i),
-                        nodeID=destNodeIDs[i],
-                        scene=self.sceneNetwork,
-                        dir=axisDir,
-                        centerX=centerX,
-                        centerY=centerY,
-                        width=self.nodeImgWidth,
-                        height=self.nodeImgHeight,
-                        textSize=self.nodeImgTextSize
-                    )
-                    linkNodeImgs_all.append(linkNodeImg)
-                    linkNodeImgs_thisAxisDir.append(linkNodeImg)
-                    ringLinkNodeImgs.update(
-                    {str(axisDir): linkNodeImgs_thisAxisDir})
-                    self.networkElements.append(linkNodeImg)
-                    activeLinkNodeCenters.append([centerX, centerY])
-                    ringLinkNodeIDs.append(destNodeIDs[i])
-                    self.activeLinkNodeIDs.append(int(destNodeIDs[i]))
-                    self.activeLinkNodeImgs.append(linkNodeImg)
-
-            # Add link images into the scene for this direction
-            activeLinkImgs = []
-            if focusNodeImg != None:
-                for i in range(len(destNodeIDs)):
-                    if int(destNodeIDs[i]) in self.activeLinkNodeIDs:
-                        destNodeImg = self.activeLinkNodeImgs[
-                        self.activeLinkNodeIDs.index(int(destNodeIDs[i]))]
-                        focusAnchorDirs = {1: 'bottom', 2: 'top', 3: 'right',
-                        4: 'left'}
-                        destAnchorDirs = {1: 'top', 2: 'bottom', 3: 'left',
-                        4: 'right'}
-                        anchor1 = eval('focusNodeImg.'+focusAnchorDirs[
-                        axisDir]+'Anchor')
-                        anchor2 = eval('destNodeImg.'+destAnchorDirs[
-                        axisDir]+'Anchor')
-                        linkImg = self.addLink(
-                            scene=self.sceneNetwork,
-                            linkID_forward=linkIDs_forward[int(destNodeIDs[i])],
-                            linkID_reverse=linkIDs_reverse[int(destNodeIDs[i])],
-                            nodeImg1=focusNodeImg,
-                            anchor1=anchor1,
-                            nodeImg2=self.activeLinkNodeImgs[
-                            self.activeLinkNodeIDs.index(int(destNodeIDs[i]))],
-                            anchor2=anchor2
-                        )
-                        activeLinkImgs.append(linkImg)
-                        self.networkElements.append(linkImg)
-                    else:
-                        if axisDir == 1:
-                            anchor1=focusNodeImg.bottomAnchor
-                            anchor2=ringLinkNodeImgs[str(axisDir)][i].topAnchor
-                        elif axisDir == 2:
-                            anchor1=focusNodeImg.topAnchor
-                            anchor2=ringLinkNodeImgs[str(axisDir)][i].bottomAnchor
-                        elif axisDir == 3:
-                            anchor1=focusNodeImg.rightAnchor
-                            anchor2=ringLinkNodeImgs[str(axisDir)][i].leftAnchor
-                        elif axisDir == 4:
-                            anchor1=focusNodeImg.leftAnchor
-                            anchor2=ringLinkNodeImgs[str(axisDir)][i].rightAnchor
-                        linkImg = self.addLink(
-                            scene=self.sceneNetwork,
-                            linkID_forward=linkIDs_forward[int(destNodeIDs[i])],
-                            linkID_reverse=linkIDs_reverse[int(destNodeIDs[i])],
-                            nodeImg1=focusNodeImg,
-                            anchor1=anchor1,
-                            nodeImg2=ringLinkNodeImgs[str(axisDir)][i],
-                            anchor2=anchor2
-                        )
-                        activeLinkImgs.append(linkImg)
-                        self.networkElements.append(linkImg)
-
-        return activeLinkNodeCenters, ringLinkNodeIDs, linkNodeImgs_all
-
-    def renderLastLinksRing(self, centerCoords, focusNodeImg):
-        # Render the last set of links after the final ring of nodes (only those
-        # which connect to nodes already on the view)
-
-        focusNodeID = focusNodeImg.nodeID
-
-        # Create destNodeID and relationship lists for each direction from the
-        # active node
-        destNodeIDs_dir0 = [focusNodeID]
-        linkIDs_forward_dir0, linkIDs_reverse_dir0 = [None], [None]
-
-        activeLinks_dir1 = db.LinksDBModel(self, focusNodeID,
-        dirs=[self.axisAssignments[1]])
-        destNodeIDs_dir1 = activeLinks_dir1.destNodeIDs()
-        linkIDs_forward_dir1, linkIDs_reverse_dir1 = activeLinks_dir1.linkIDs()
-
-        activeLinks_dir2 = db.LinksDBModel(self, focusNodeID,
-        dirs=[self.axisAssignments[2]])
-        destNodeIDs_dir2 = activeLinks_dir2.destNodeIDs()
-        linkIDs_forward_dir2, linkIDs_reverse_dir2 = activeLinks_dir2.linkIDs()
-
-        activeLinks_dir3 = db.LinksDBModel(self, focusNodeID,
-        dirs=[self.axisAssignments[3]])
-        destNodeIDs_dir3 = activeLinks_dir3.destNodeIDs()
-        linkIDs_forward_dir3, linkIDs_reverse_dir3 = activeLinks_dir3.linkIDs()
-
-        activeLinks_dir4 = db.LinksDBModel(self, focusNodeID,
-        dirs=[self.axisAssignments[4]])
-        destNodeIDs_dir4 = activeLinks_dir4.destNodeIDs()
-        linkIDs_forward_dir4, linkIDs_reverse_dir4 = activeLinks_dir4.linkIDs()
-
-        # Set network geometry
-        networkCenterX = centerCoords[0]
-        networkCenterY = centerCoords[1]
-
-        # Add relation link images into the scene for each axis direction
-        axisDirectionMultipliers = {'0': ['X', 0, 0], '1': ['X', 0, 1],
-        '2': ['X', 0, -1], '3': ['Y', 1, 0], '4': ['Y', -1, 0]}
-        ringLinkNodeIDs = []
-        activeLinkNodeCenters = []
-        ringLinkNodeImgs = {}
-        linkNodeImgs_all = []
-
-        axisDirSet = [1, 2, 3, 4]
-
-        for axisDir in axisDirSet:
-            # Add node images into the scene for this axis direction
-            linkNodeImgs_thisAxisDir = []
-            destNodeIDs = eval('destNodeIDs_dir'+str(axisDir))
-            linkIDs_forward = eval('linkIDs_forward_dir'+str(axisDir))
-            linkIDs_reverse = eval('linkIDs_reverse_dir'+str(axisDir))
-            startLimitAxis, xSign, ySign = axisDirectionMultipliers[str(
-            axisDir)]
-
-            # Add link images into the scene for this direction
-            activeLinkImgs = []
-            for i in range(len(destNodeIDs)):
-                if int(destNodeIDs[i]) in self.activeLinkNodeIDs:
-                    destNodeImg = self.activeLinkNodeImgs[
-                    self.activeLinkNodeIDs.index(int(destNodeIDs[i]))]
-                    focusAnchorDirs = {1: 'bottom', 2: 'top', 3: 'right',
-                    4: 'left'}
-                    destAnchorDirs = {1: 'top', 2: 'bottom', 3: 'left',
-                    4: 'right'}
-                    anchor1 = eval('focusNodeImg.'+focusAnchorDirs[
-                    axisDir]+'Anchor')
-                    anchor2 = eval('destNodeImg.'+destAnchorDirs[
-                    axisDir]+'Anchor')
-                    linkImg = self.addLink(
-                        scene=self.sceneNetwork,
-                        linkID_forward=linkIDs_forward[int(destNodeIDs[i])],
-                        linkID_reverse=linkIDs_reverse[int(destNodeIDs[i])],
-                        nodeImg1=focusNodeImg,
-                        anchor1=anchor1,
-                        nodeImg2=self.activeLinkNodeImgs[
-                        self.activeLinkNodeIDs.index(int(destNodeIDs[i]))],
-                        anchor2=anchor2
-                    )
-                    activeLinkImgs.append(linkImg)
-                    self.networkElements.append(linkImg)
-
     def renderNotes(self):
         # Render the notes for the active node
-        self.notesDBModel = db.NotesDBModel(self, self.activeNodeID)
+        self.notesDBModel = db.NotesDBModel(self, self.viewNetwork.activeNodeID)
         self.notesEditor.text.setText(
             self.notesDBModel.modelNotes.record(0).value('body').toString()
         )
@@ -623,7 +341,7 @@ class Window(QtGui.QMainWindow):
         # Add a node image into the specified scene
 
         # Initialize the node graphic and properties
-        node = nodeImg.NodeImg(self, name, nodeID, dir, centerX, centerY,
+        node = grav.nodeImg.NodeImg(self, name, nodeID, dir, centerX, centerY,
         width, height)
         node.setFlags(
             QtGui.QGraphicsItem.ItemIsSelectable |
@@ -631,6 +349,10 @@ class Window(QtGui.QMainWindow):
             QtGui.QGraphicsItem.ItemSendsScenePositionChanges
             )
         scene.addItem(node)
+
+        # Set up signal/slot for clicking on nodes in selection views
+        if hasattr(scene, 'role') and scene.role == 'select':
+            node.signaler.select.connect(networkPortal.chooseNode)
 
         # Initialize the anchor graphics and set as children of node graphics
         for anchor in node.anchors:
@@ -665,7 +387,7 @@ class Window(QtGui.QMainWindow):
         self.oppositeLinkIDs.update({linkID_forward: linkID_reverse})
 
         # Add link graphic to scene and set attributes
-        linkImg = nodeImg.RelationshipImg(self, None, linkID_forward,
+        linkImg = grav.nodeImg.RelationshipImg(self, None, linkID_forward,
         linkID_reverse, nodeImg1.centerX+anchor1.xOffset,
         nodeImg1.centerY+anchor1.yOffset, nodeImg2.centerX+anchor2.xOffset,
         nodeImg2.centerY+anchor2.yOffset, QtGui.QPen(QtCore.Qt.black, 1,
@@ -692,9 +414,10 @@ class Window(QtGui.QMainWindow):
         self.nodeImgTextSize = self.nodeImgTextSize*scaleFactor
 
         # Set size of node images
-        self.removeImgSet(self.networkElements, self.sceneNetwork)
-        self.networkElements = []
-        self.renderNetwork(dirs=[1, 2, 3])
+        self.removeImgSet(self.viewNetwork.networkElements,
+        self.viewNetwork.scene())
+        self.viewNetwork.networkElements = []
+        self.viewNetwork.renderNetwork(dirs=[1, 2, 3, 4])
         self.removeImgSet(self.pinNodeImgs, self.scenePins)
         self.renderPins()
         self.removeImgSet(self.historyNodeImgs, self.sceneHistory)
