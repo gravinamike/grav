@@ -22,29 +22,14 @@ class Window(QtGui.QMainWindow):
 
     def __init__(self):
         super(Window, self).__init__()
-        # Initialize Brain database
-        self.brain = db.Brain(self)
-
-        self.linkPortal = None
-
-        # Set active node of network, pin nodes, history nodes
-        self.startingNodeID = 30
-        self.pinNodeIDs = []
-        self.historyNodeIDs = []
-        # Set relationship directions to each view axis, and their opposites
-        self.axisDirections = db.AxisDirectionsDBModel(1, 2, 3, 4)
-        self.axisAssignments = {1: 1, 2: 2, 3: 3, 4: 4}
-        self.axisAssignmentOpposites = {}
-        self.getAxisAssignmentOpposites()
-        # Set dictionary of linkIDs and their opposite linkIDs
-        self.oppositeLinkIDs = {}
-        # Set size of node images
-        self.nodeImgWidth = 100
-        self.nodeImgHeight = 50
-        self.nodeImgTextSize = 12
 
         # Initialize the window user interface
         self.initUI()
+
+        # Initialize Brain database
+        self.h2 = db.openH2()
+        self.openDatabase(
+        '~/Desktop/H2 testing/TESTING_LifeLoop_brain/brain_db/brain')
 
     def initUI(self, labelText=None):
         # Set window geometry and features
@@ -54,22 +39,29 @@ class Window(QtGui.QMainWindow):
         self.center()
         self.setWindowTitle('Seahorse')
         self.setWindowIcon(QtGui.QIcon('seahorse.png'))
+
         # Set up actions associated with window
+        openAction = QtGui.QAction(QtGui.QIcon('exit.png'), '&Open', self)
+        openAction.setShortcut('Ctrl+O')
+        openAction.setStatusTip('Open database')
+        openAction.triggered.connect(self.openDialog)
+
         exitAction = QtGui.QAction(QtGui.QIcon('exit.png'), '&Exit', self)
         exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(QtGui.qApp.quit)
+
         # Set up window bars (menu, tool, status)
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
+        fileMenu.addAction(openAction)
         fileMenu.addAction(exitAction)
         self.toolbar = self.addToolBar('Exit')
         self.toolbar.addAction(exitAction)
         self.statusBar().showMessage('Ready')
 
         # Create network scene, view and element lists for later deletion
-        self.viewNetwork = networkPortal.NetworkPortal(self,
-        self.startingNodeID)
+        self.viewNetwork = networkPortal.NetworkPortal(self)
         self.viewNetwork.setMinimumWidth(800)
         self.viewNetwork.setMinimumHeight(600)
         self.directionElements = []
@@ -84,15 +76,13 @@ class Window(QtGui.QMainWindow):
 
         # Create direction table portal and direction-add/remove buttons
         self.tableDirections = QtGui.QTableView()
-        self.tableDirections.setModel(self.brain.modelDirections)
         self.tableDirections.setColumnWidth(1, 170)
         self.tableDirections.setColumnWidth(2, 170)
         self.tableDirections.setColumnWidth(3, 170)
 
         self.buttonAddDir = QtGui.QPushButton('Add direction')
-        self.buttonAddDir.clicked.connect(self.brain.createDirection)
         self.buttonDelDir = QtGui.QPushButton('Delete direction')
-        self.buttonDelDir.clicked.connect(self.brain.deleteDirection)
+        # Signal-slot connnections handled in openDatabase method
 
         self.directionsBox = QtGui.QVBoxLayout()
         self.directionsBox.addWidget(self.tableDirections)
@@ -159,14 +149,55 @@ class Window(QtGui.QMainWindow):
         stretchBox.setLayout(vbox)
         self.setCentralWidget(stretchBox)
 
+        # Display the window
+        self.show()
+
+    def openDatabase(self, filename):
+
+        # Set active node of network, pin nodes, history nodes
+        self.startingNodeID = 30
+        self.pinNodeIDs = []
+        self.historyNodeIDs = []
+        # Set null link portal
+        self.linkPortal = None
+        # Set size of node images
+        self.nodeImgWidth = 100
+        self.nodeImgHeight = 50
+        self.nodeImgTextSize = 12
+
+        # Open the database
+        self.brain = db.Brain(self, filename)
+
+        # Set relationship directions to each view axis, and their opposites
+        self.axisDirections = db.AxisDirectionsDBModel(1, 2, 3, 4)#############################
+        self.axisAssignments = {1: 1, 2: 2, 3: 3, 4: 4}
+        self.axisAssignmentOpposites = {}
+        self.getAxisAssignmentOpposites()
+        # Set dictionary of linkIDs and their opposite linkIDs
+        self.oppositeLinkIDs = {}
+
+        self.tableDirections.setModel(self.brain.modelDirections)############################
+
+        self.buttonAddDir.clicked.connect(self.brain.createDirection)
+        self.buttonDelDir.clicked.connect(self.brain.deleteDirection)
+
         # Display the network, pins, history and direction-selector
         self.viewNetwork.setActiveNode(nodeID=self.startingNodeID)
         self.renderPins()
         self.historyNodeImgs = []
         self.renderDirections(self.sceneDirections)
 
-        # Display the window
-        self.show()
+    def openDialog(self):
+
+        # Get filename and show only .db files
+        self.filename = QtGui.QFileDialog.getOpenFileName(self,
+        'Open File',".","(*.db)")
+
+        print self.filename
+
+        if self.filename:
+            self.brain.close()
+            self.openDatabase(self.filename)
 
     def assignAxis(self, axisDir, assignedDir):
         # Assigns a unidirectional axis of the view to a database direction
@@ -185,7 +216,7 @@ class Window(QtGui.QMainWindow):
         self.renderDirections(self.sceneDirections)
         self.viewNetwork.setActiveNode()
 
-    def getAxisAssignmentOpposites(self):
+    def getAxisAssignmentOpposites(self):#######################################################
         # Sets dictionary of direction-axis assignments
         self.axisAssignmentOpposites = {}
         model = self.axisDirections.model
@@ -228,7 +259,7 @@ class Window(QtGui.QMainWindow):
         scene.addItem(centerSquare)
         self.directionElements.append(centerSquare)
 
-        # Render the text
+        # Render the text##############################################################################
         pixelSize = 12
         model = self.axisDirections.model
         axisTexts = {
@@ -256,7 +287,7 @@ class Window(QtGui.QMainWindow):
             text.setPos(axisTexts[key][1], axisTexts[key][2])
             text.rotate(axisTexts[key][3])
 
-    def renderNotes(self):
+    def renderNotes(self):#######################################################################
         # Render the notes for the active node
         self.notesDBModel = db.NotesDBModel(self, self.viewNetwork.activeNodeID)
         self.notesEditor.text.setText(
@@ -363,7 +394,7 @@ class Window(QtGui.QMainWindow):
                 QtGui.QGraphicsItem.ItemSendsScenePositionChanges)
             anchor.setParentItem(node)
 
-        # Add text and set it as child of the node graphic
+        # Add text and set it as child of the node graphic#########################################
         node.text = scene.addText(
             node.nodeDBModel.model.record(0).value('name').toString() + '\n' +
             node.nodeDBModel.model.record(0).value('ID').toString()
@@ -440,11 +471,14 @@ class Window(QtGui.QMainWindow):
         else:
             event.ignore()
 
+    def print_out(self):
+        print 'Report'
+
     def exitCleanup(self):
         # Final cleanup if window is closed, including saving notes and shutting
         # down the db
         self.saveNotes()
-        self.brain.h2.kill()
+        self.h2.kill()
         print "Database killed!"
 
 

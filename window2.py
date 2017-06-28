@@ -4,7 +4,7 @@ import site
 from subprocess import Popen
 from PyQt4.QtCore import(Qt, QSignalMapper)
 from PyQt4.QtGui import(QMainWindow, QApplication, QWidget, QPushButton, qApp,
-QVBoxLayout, QTableView, QApplication)
+QVBoxLayout, QTableView, QApplication, QAbstractItemView)
 from PyQt4.QtSql import(QSqlDatabase, QSqlQuery, QSqlQueryModel, QSqlTableModel)
 
 
@@ -44,11 +44,19 @@ class Window(QMainWindow):
 
         self.modelDirections = QSqlTableModel(None, self.__database)
         self.modelDirections.setTable('PUBLIC.DIRECTIONS')
-        self.modelDirections.setEditStrategy(QSqlTableModel.OnFieldChange)
+        #self.modelDirections.setEditStrategy(QSqlTableModel.OnFieldChange)
+        self.modelDirections.setEditStrategy(QSqlTableModel.OnRowChange)
         self.modelDirections.select()
+
+
+        self.modelDirections.dataChanged.connect(self.saveIt) ######################## now transfer the model data to the database
+
 
         self.tableDirections = QTableView()
         self.tableDirections.setModel(self.modelDirections)
+        #self.tableDirections.setEditTriggers(QAbstractItemView.DoubleClicked)
+
+
         self.buttonAddDir = QPushButton('Add direction')
         self.buttonAddDir.clicked.connect(self.createDirection)
 
@@ -81,7 +89,17 @@ class Window(QMainWindow):
         ]
         query = QSqlQuery()
         query.exec_(queryText)
+        #self.tableDirections.update()
 
+
+    def saveIt(self):
+        success = self.modelDirections.submit()
+        print success
+        if not success:
+            print self.modelDirections.lastError().text()
+
+    def print_out(self):
+        print 'Signaled'
 
 
     def exitCleanup(self):

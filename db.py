@@ -18,16 +18,10 @@ from datetime import datetime
 from PyQt4 import QtCore, QtGui, QtSql
 
 
-class Brain:
-    # Instantiates a Brain object that links to an active H2 database
-
-    def __init__(self, window):
-        # Initialize attributes
-        self.window = window
-
+def openH2(jarName='C:/Program Files (x86)/TheBrain/lib/h2.jar'):
         # Open the database
-        self.h2 = Popen(["java", "-cp",
-        "C:/Program Files (x86)/TheBrain/lib/h2.jar", "org.h2.tools.Server",
+        h2 = Popen(["java", "-cp",
+        jarName, "org.h2.tools.Server",
         "-pg"])
 
         #IS THIS CORRECT? IT REFERS TO PYQT 5, NOT 4!
@@ -35,14 +29,24 @@ class Brain:
         QtGui.QApplication.addLibraryPath(
         '{0}\\PyQt5\\plugins'.format(site_pack_path))
 
+        return h2
+
+
+class Brain:
+    # Instantiates a Brain object that links to an active H2 database
+
+    def __init__(self, window, filename,
+        jarName='C:/Program Files (x86)/TheBrain/lib/h2.jar'):
+        # Initialize attributes
+        self.window = window
+
         # Establish a connection to the database
         # Add this when it's actually an application:
         # QtGui.QApplication.addLibraryPath('C:/Users/Grav/AppData/Local/Programs
         # /Python/Python35-32/Lib/site-packages/PyQt5/plugins/sqldrivers')
         self.__database = QtSql.QSqlDatabase.addDatabase('QPSQL')
         self.__database.setHostName('localhost')
-        self.__database.setDatabaseName(
-        '~/Desktop/H2 testing/TESTING_LifeLoop_brain/brain_db/brain')
+        self.__database.setDatabaseName(filename)
         # .h2.db? ;ifexists=true?
         self.__database.setPort(5435) #Possibly redundant
         self.__database.setUserName('sa')
@@ -85,7 +89,7 @@ class Brain:
             ]
             queries = self.querySet(queryTexts)
 
-        # Create a read-write model based the DIRECTIONS table
+        # Create a read-write model based on the DIRECTIONS table
         self.modelDirections = QtSql.QSqlTableModel(None, self.__database)
         self.modelDirections.setTable('PUBLIC.DIRECTIONS')
         self.modelDirections.setSort(0, QtCore.Qt.AscendingOrder)
@@ -460,6 +464,13 @@ class Brain:
             # Execute queries
             queries = self.querySet(queryTexts)
 
+    def close(self):
+        connection = self.__database.connectionName()
+        print connection
+        self.__database.close()
+        self.__database = QtSql.QSqlDatabase()
+        self.__database.removeDatabase(connection)
+
 
 class BrainModel:
     #A read-write model based on a SQL query on the BRAINS table
@@ -529,7 +540,7 @@ class NotesDBModel:
         query = 'SELECT * FROM entries WHERE id=' + str(self.notesID)
         self.modelNotes.setQuery(query)
 
-
+"""
 class LinksDBModel:
     #A read-write model based on a SQL query on the LINKS table
     def __init__(self, window, activeNodeID, dirs=[1]):
@@ -598,3 +609,61 @@ class LinksDBModel:
 
         # Returns the relationship IDs
         return linkIDs_forward, linkIDs_reverse
+"""
+
+
+def LinksIDs(window, activeNodeID, dirs=[1]):################################################################################
+    #A read-write model based on a SQL query on the LINKS table
+    #def __init__(self, window, activeNodeID, dirs=[1]):
+    listNumber = False
+    dirsAndOppositeDirs = dirs + window.axisAssignmentOpposites.values()
+    destLinksModel = QtSql.QSqlQueryModel()
+    destAndReturnLinksModel = QtSql.QSqlQueryModel()
+
+    # Define and execute queries
+    query = 'SELECT * FROM links WHERE (ida=' + str(activeNodeID) + \
+    ' or idb=' + str(activeNodeID) + ') and direction IN (' + \
+    ', '.join(str(dir) for dir in dirs) + ')'
+    destLinksModel.setQuery(query)
+
+    query = 'SELECT * FROM links WHERE (ida=' + str(activeNodeID) + \
+    ' or idb=' + str(activeNodeID) + ') and direction IN (' + \
+    ', '.join(str(dir) for dir in dirsAndOppositeDirs) + ')'
+    destAndReturnLinksModel.setQuery(query)
+
+    # Determines whether all or only a fixed number of links are queried
+    if listNumber == False:
+        end = destLinksModel.rowCount()
+    else:
+        end = listNumber
+
+    # Adds the nodes to a list
+    destNodeIDs = []
+    for i in range(0, end):
+        if destLinksModel.record(i).value('ida') == activeNodeID:
+            destNodeIDs.append(
+            destLinksModel.record(i).value('idb').toString())
+        # There are actually 2 links for each visible link. Double links are
+        # created at the same time, and have sequential IDs. We are ignoring
+        # the second one, but the code below would reinstantiate it (and
+        # create false link nodes "mirroring" the active node).
+
+
+    # Create dictionaries of forward and reverse links for each node, with
+    # Nones if there are no links in that direction.
+    linkIDs_forward = {}
+    linkIDs_reverse = {}
+    for i in range(0, len(destNodeIDs)):
+        destNodeID = int(destNodeIDs[i])
+        linkIDs_forward.update({destNodeID: None})
+        linkIDs_reverse.update({destNodeID: None})
+        for j in range(0, destAndReturnLinksModel.rowCount()):
+            if int(destAndReturnLinksModel.record(j).value('idb').toString()) == destNodeID:
+                linkIDs_forward[destNodeID] = int(destAndReturnLinksModel.record(j).value('id').toString())
+            if int(destAndReturnLinksModel.record(j).value('ida').toString()) == destNodeID:
+                linkIDs_reverse[destNodeID] = int(destAndReturnLinksModel.record(j).value('id').toString())
+            # There are actually 2 links for each visible link. Double links are
+            # created at the same time, and have sequential IDs.
+
+    # Returns the related node IDs and relationship IDs
+    return destNodeIDs, linkIDs_forward, linkIDs_reverse

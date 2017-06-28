@@ -10,7 +10,7 @@ last edited: Jun 2017
 
 import grav.db as db
 import grav.nodeImg
-from grav import axes, htmlParse, textEdit, nodeimg
+from grav import axes, htmlParse, textEdit
 from PyQt4 import QtCore, QtGui
 
 class NetworkPortal(QtGui.QGraphicsView):
@@ -66,6 +66,7 @@ class NetworkPortal(QtGui.QGraphicsView):
         self.activeLinkNodeIDs = []
         self.activeLinkNodeImgs = []
         self.oppositeLinkIDs = {}
+        self.extantLinkNames = []
 
         for ring in range(0, ringCount):
 
@@ -107,7 +108,7 @@ class NetworkPortal(QtGui.QGraphicsView):
         destNodeIDs_dir0 = [focusNodeID]
         linkIDs_forward_dir0, linkIDs_reverse_dir0 = [None], [None]
 
-        activeLinks_dir1 = db.LinksDBModel(self.window, focusNodeID,
+        """activeLinks_dir1 = db.LinksDBModel(self.window, focusNodeID,
         dirs=[self.window.axisAssignments[1]])
         destNodeIDs_dir1 = activeLinks_dir1.destNodeIDs()
         linkIDs_forward_dir1, linkIDs_reverse_dir1 = activeLinks_dir1.linkIDs()
@@ -125,7 +126,23 @@ class NetworkPortal(QtGui.QGraphicsView):
         activeLinks_dir4 = db.LinksDBModel(self.window, focusNodeID,
         dirs=[self.window.axisAssignments[4]])
         destNodeIDs_dir4 = activeLinks_dir4.destNodeIDs()
-        linkIDs_forward_dir4, linkIDs_reverse_dir4 = activeLinks_dir4.linkIDs()
+        linkIDs_forward_dir4, linkIDs_reverse_dir4 = activeLinks_dir4.linkIDs()"""
+
+        destNodeIDs_dir1, linkIDs_forward_dir1, linkIDs_reverse_dir1 = \
+        db.LinksIDs(self.window, focusNodeID,
+        dirs=[self.window.axisAssignments[1]])
+
+        destNodeIDs_dir2, linkIDs_forward_dir2, linkIDs_reverse_dir2 = \
+        db.LinksIDs(self.window, focusNodeID,
+        dirs=[self.window.axisAssignments[2]])
+
+        destNodeIDs_dir3, linkIDs_forward_dir3, linkIDs_reverse_dir3 = \
+        db.LinksIDs(self.window, focusNodeID,
+        dirs=[self.window.axisAssignments[3]])
+
+        destNodeIDs_dir4, linkIDs_forward_dir4, linkIDs_reverse_dir4 = \
+        db.LinksIDs(self.window, focusNodeID,
+        dirs=[self.window.axisAssignments[4]])
 
         # Set network geometry
         networkCenterX = centerCoords[0]
@@ -196,6 +213,7 @@ class NetworkPortal(QtGui.QGraphicsView):
                     self.activeLinkNodeIDs.append(int(destNodeIDs[i]))
                     self.activeLinkNodeImgs.append(linkNodeImg)
 
+
             # Add link images into the scene for this direction
             activeLinkImgs = []
             if focusNodeImg != None:
@@ -223,6 +241,12 @@ class NetworkPortal(QtGui.QGraphicsView):
                         )
                         activeLinkImgs.append(linkImg)
                         self.networkElements.append(linkImg)
+                        self.extantLinkNames.append(
+                        str(linkIDs_forward[int(destNodeIDs[i])]) + '-' +
+                        str(linkIDs_reverse[int(destNodeIDs[i])]))
+                        self.extantLinkNames.append(
+                        str(linkIDs_reverse[int(destNodeIDs[i])]) + '-' +
+                        str(linkIDs_forward[int(destNodeIDs[i])]))
                     else:
                         if axisDir == 1:
                             anchor1=focusNodeImg.bottomAnchor
@@ -261,7 +285,7 @@ class NetworkPortal(QtGui.QGraphicsView):
         destNodeIDs_dir0 = [focusNodeID]
         linkIDs_forward_dir0, linkIDs_reverse_dir0 = [None], [None]
 
-        activeLinks_dir1 = db.LinksDBModel(self.window, focusNodeID,
+        """activeLinks_dir1 = db.LinksDBModel(self.window, focusNodeID,
         dirs=[self.window.axisAssignments[1]])
         destNodeIDs_dir1 = activeLinks_dir1.destNodeIDs()
         linkIDs_forward_dir1, linkIDs_reverse_dir1 = activeLinks_dir1.linkIDs()
@@ -279,7 +303,23 @@ class NetworkPortal(QtGui.QGraphicsView):
         activeLinks_dir4 = db.LinksDBModel(self.window, focusNodeID,
         dirs=[self.window.axisAssignments[4]])
         destNodeIDs_dir4 = activeLinks_dir4.destNodeIDs()
-        linkIDs_forward_dir4, linkIDs_reverse_dir4 = activeLinks_dir4.linkIDs()
+        linkIDs_forward_dir4, linkIDs_reverse_dir4 = activeLinks_dir4.linkIDs()"""
+
+        destNodeIDs_dir1, linkIDs_forward_dir1, linkIDs_reverse_dir1 = \
+        db.LinksIDs(self.window, focusNodeID,
+        dirs=[self.window.axisAssignments[1]])
+
+        destNodeIDs_dir2, linkIDs_forward_dir2, linkIDs_reverse_dir2 = \
+        db.LinksIDs(self.window, focusNodeID,
+        dirs=[self.window.axisAssignments[2]])
+
+        destNodeIDs_dir3, linkIDs_forward_dir3, linkIDs_reverse_dir3 = \
+        db.LinksIDs(self.window, focusNodeID,
+        dirs=[self.window.axisAssignments[3]])
+
+        destNodeIDs_dir4, linkIDs_forward_dir4, linkIDs_reverse_dir4 = \
+        db.LinksIDs(self.window, focusNodeID,
+        dirs=[self.window.axisAssignments[4]])
 
         # Set network geometry
         networkCenterX = centerCoords[0]
@@ -296,7 +336,7 @@ class NetworkPortal(QtGui.QGraphicsView):
         axisDirSet = [1, 2, 3, 4]
 
         for axisDir in axisDirSet:
-            # Add node images into the scene for this axis direction
+            # Get destination node info for this axis direction
             linkNodeImgs_thisAxisDir = []
             destNodeIDs = eval('destNodeIDs_dir'+str(axisDir))
             linkIDs_forward = eval('linkIDs_forward_dir'+str(axisDir))
@@ -306,7 +346,7 @@ class NetworkPortal(QtGui.QGraphicsView):
 
             # Add link images into the scene for this direction
             activeLinkImgs = []
-            for i in range(len(destNodeIDs)):
+            for i in range(len(destNodeIDs)): # TODO - conditionalize this for non-extant links
                 if int(destNodeIDs[i]) in self.activeLinkNodeIDs:
                     destNodeImg = self.activeLinkNodeImgs[
                     self.activeLinkNodeIDs.index(int(destNodeIDs[i]))]
@@ -318,18 +358,27 @@ class NetworkPortal(QtGui.QGraphicsView):
                     axisDir]+'Anchor')
                     anchor2 = eval('destNodeImg.'+destAnchorDirs[
                     axisDir]+'Anchor')
-                    linkImg = self.window.addLink(
-                        scene=self.scene(),
-                        linkID_forward=linkIDs_forward[int(destNodeIDs[i])],
-                        linkID_reverse=linkIDs_reverse[int(destNodeIDs[i])],
-                        nodeImg1=focusNodeImg,
-                        anchor1=anchor1,
-                        nodeImg2=self.activeLinkNodeImgs[
-                        self.activeLinkNodeIDs.index(int(destNodeIDs[i]))],
-                        anchor2=anchor2
-                    )
-                    activeLinkImgs.append(linkImg)
-                    self.networkElements.append(linkImg)
+                    linkName = str(linkIDs_forward[int(destNodeIDs[i])]) + '-' \
+                    + str(linkIDs_reverse[int(destNodeIDs[i])])
+                    if not linkName in self.extantLinkNames:
+                        linkImg = self.window.addLink(
+                            scene=self.scene(),
+                            linkID_forward=linkIDs_forward[int(destNodeIDs[i])],
+                            linkID_reverse=linkIDs_reverse[int(destNodeIDs[i])],
+                            nodeImg1=focusNodeImg,
+                            anchor1=anchor1,
+                            nodeImg2=self.activeLinkNodeImgs[
+                            self.activeLinkNodeIDs.index(int(destNodeIDs[i]))],
+                            anchor2=anchor2
+                        )
+                        activeLinkImgs.append(linkImg)
+                        self.networkElements.append(linkImg)
+                        self.extantLinkNames.append(
+                        str(linkIDs_forward[int(destNodeIDs[i])]) + '-' +
+                        str(linkIDs_reverse[int(destNodeIDs[i])]))
+                        self.extantLinkNames.append(
+                        str(linkIDs_reverse[int(destNodeIDs[i])]) + '-' +
+                        str(linkIDs_forward[int(destNodeIDs[i])]))
 
 
 def remoteLinkInterface(interfaceOwner, posX, posY):
