@@ -74,11 +74,12 @@ class Window(QtGui.QMainWindow):
         self.sceneHistory = QtGui.QGraphicsScene()
         self.viewHistory = QtGui.QGraphicsView(self.sceneHistory)
 
-        # Create direction table portal and direction-add/remove buttons
+        """# Create direction table portal and direction-add/remove buttons
         self.tableDirections = QtGui.QTableView()
         self.tableDirections.setColumnWidth(1, 170)
         self.tableDirections.setColumnWidth(2, 170)
-        self.tableDirections.setColumnWidth(3, 170)
+        self.tableDirections.setColumnWidth(3, 170)"""
+        self.tableDirections = QtGui.QLineEdit()
 
         self.buttonAddDir = QtGui.QPushButton('Add direction')
         self.buttonDelDir = QtGui.QPushButton('Delete direction')
@@ -166,20 +167,20 @@ class Window(QtGui.QMainWindow):
         self.nodeImgTextSize = 12
 
         # Open the database
-        self.brain = db.Brain(self, filename)
+        #self.brain = db.Brain(self, filename) #TODO Get rid of this!
 
         # Set relationship directions to each view axis, and their opposites
-        self.axisDirections = db.AxisDirectionsDBModel(1, 2, 3, 4)#############################
+        self.axisDirectionsIDs, self.axisDirectionsOpposites, self.axisDirectionsTexts = db.axisDirectionsInfo(self, 1, 2, 3, 4)
         self.axisAssignments = {1: 1, 2: 2, 3: 3, 4: 4}
         self.axisAssignmentOpposites = {}
         self.getAxisAssignmentOpposites()
         # Set dictionary of linkIDs and their opposite linkIDs
         self.oppositeLinkIDs = {}
 
-        self.tableDirections.setModel(self.brain.modelDirections)############################
+        """self.tableDirections.setModel(self.brain.modelDirections)"""
 
-        self.buttonAddDir.clicked.connect(self.brain.createDirection)
-        self.buttonDelDir.clicked.connect(self.brain.deleteDirection)
+        self.buttonAddDir.clicked.connect(db.createDirection)
+        self.buttonDelDir.clicked.connect(db.deleteDirection)
 
         # Display the network, pins, history and direction-selector
         self.viewNetwork.setActiveNode(nodeID=self.startingNodeID)
@@ -216,15 +217,13 @@ class Window(QtGui.QMainWindow):
         self.renderDirections(self.sceneDirections)
         self.viewNetwork.setActiveNode()
 
-    def getAxisAssignmentOpposites(self):#######################################################
+    def getAxisAssignmentOpposites(self):
         # Sets dictionary of direction-axis assignments
         self.axisAssignmentOpposites = {}
-        model = self.axisDirections.model
-        for row in range(0, model.rowCount()):
+        for i in range(len(self.axisDirectionsIDs)):
             for direction in list(set(self.axisAssignments.values())):
-                if int(model.record(row).value('id').toString()) == direction:
-                    opposite = int(
-                    model.record(row).value('opposite').toString())
+                if self.axisDirectionsIDs[i] == direction:
+                    opposite = self.axisDirectionsOpposites[i]
                     self.axisAssignmentOpposites.update({direction: opposite})
 
     def renderDirections(self, scene):
@@ -259,9 +258,8 @@ class Window(QtGui.QMainWindow):
         scene.addItem(centerSquare)
         self.directionElements.append(centerSquare)
 
-        # Render the text##############################################################################
+        # Render the text
         pixelSize = 12
-        model = self.axisDirections.model
         axisTexts = {
         'Down': [None, 20+pixelSize/2, 30, 90],
         'Up': [None, -20-pixelSize/2, -30, -90],
@@ -270,12 +268,10 @@ class Window(QtGui.QMainWindow):
         }
         axisDirToRelationDir = {'Down': 1, 'Up': 2, 'Right': 3, 'Left': 4}
         for key in axisTexts.keys():
-            for row in range(0, model.rowCount()):
-                if int(model.record(row).value(
-                'id').toString()) == self.axisAssignments[
+            for i in range(len(self.axisDirectionsIDs)):
+                if self.axisDirectionsIDs[i] == self.axisAssignments[
                 axisDirToRelationDir[key]]:
-                    axisTexts[key][0] = str(model.record(row).value(
-                    'text').toString())
+                    axisTexts[key][0] = self.axisDirectionsTexts[i]
 
         font = QtGui.QFont('Arial', weight=75)
         font.setPixelSize(pixelSize)
@@ -287,12 +283,11 @@ class Window(QtGui.QMainWindow):
             text.setPos(axisTexts[key][1], axisTexts[key][2])
             text.rotate(axisTexts[key][3])
 
-    def renderNotes(self):#######################################################################
+    def renderNotes(self):
         # Render the notes for the active node
-        self.notesDBModel = db.NotesDBModel(self, self.viewNetwork.activeNodeID)
-        self.notesEditor.text.setText(
-            self.notesDBModel.modelNotes.record(0).value('body').toString()
-        )
+        self.notesID, notesText = db.notesInfo(self,
+        self.viewNetwork.activeNodeID)
+        self.notesEditor.text.setText(notesText)
         # Set up the auto-save timer
         self.notesTimer = QtCore.QTimer()
         self.notesTimer.timeout.connect(self.saveNotes)
@@ -307,7 +302,7 @@ class Window(QtGui.QMainWindow):
         # Save the notes for the active node
         if self.notesChangedFlag == True:
             notesText = htmlParse.htmlParse(self.notesEditor.text.toHtml())
-            self.brain.saveNotes(notesText)
+            db.saveNotes(self.brain, notesText)
             # Set up the auto-save timer
             self.notesTimer = QtCore.QTimer()
             self.notesTimer.timeout.connect(self.saveNotes)
@@ -316,6 +311,10 @@ class Window(QtGui.QMainWindow):
 
     def renderPins(self):
         # Add the pin node images into the scene
+
+        databaseConn = db.Brain2(self,
+        '~/Desktop/H2 testing/TESTING_LifeLoop_brain/brain_db/brain')
+
         self.pinNodeImgs = []
         for i in range(len(self.pinNodeIDs)):
             pinNodeImg = self.addNode(
@@ -330,7 +329,13 @@ class Window(QtGui.QMainWindow):
             )
             self.pinNodeImgs.append(pinNodeImg)
 
+        databaseConn.close()
+
     def renderHistoryNodes(self):
+
+        databaseConn = db.Brain2(self,
+        '~/Desktop/H2 testing/TESTING_LifeLoop_brain/brain_db/brain')
+
         # Add the history node images into the scene
         self.historyNodeImgs = []
         for i in range(len(self.historyNodeIDs)):
@@ -345,6 +350,8 @@ class Window(QtGui.QMainWindow):
                 textSize=self.nodeImgTextSize
             )
             self.historyNodeImgs.append(historyNodeImg)
+
+        databaseConn.close()
 
     def removeImgSet(self, imgSet, scene):
         # Remove active images and their children from the specified scene
@@ -394,11 +401,8 @@ class Window(QtGui.QMainWindow):
                 QtGui.QGraphicsItem.ItemSendsScenePositionChanges)
             anchor.setParentItem(node)
 
-        # Add text and set it as child of the node graphic#########################################
-        node.text = scene.addText(
-            node.nodeDBModel.model.record(0).value('name').toString() + '\n' +
-            node.nodeDBModel.model.record(0).value('ID').toString()
-        )
+        # Add text and set it as child of the node graphic
+        node.text = scene.addText(node.nodeName + '\n' + str(node.nodeID))
         node.text.setTextWidth(width*0.9)
         font = QtGui.QFont('Arial')
         font.setPixelSize(textSize)

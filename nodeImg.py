@@ -45,10 +45,14 @@ class NodeImg(QtGui.QGraphicsRectItem):
                         self.bottomAnchor]
 
         # Instantiate node graphic DB model
-        self.nodeDBModel = db.NodeDBModel(nodeID)
+        nodeID, self.nodeGUID, self.nodeName = db.nodeDBInfo(self.window,
+        nodeID)
 
         # Create an empty array for holding the node's linked lines
         self.lines = {}
+
+        self.signaler = grav.signaler.Signaler()
+        self.signaler.deleteRelation.connect(db.deleteRelation)
 
     def addLine(self, line, name, p1orP2, dirFromNode):
         # Links a line object and line properties to the rectangle
@@ -142,14 +146,18 @@ class NodeImg(QtGui.QGraphicsRectItem):
 
         # Action to delete this node
         self.deleteAction = QtGui.QAction('Delete node', None)
-        signalMapper2 = QtCore.QSignalMapper()
+        """signalMapper2 = QtCore.QSignalMapper()
         self.deleteAction.triggered.connect(signalMapper2.map)
         signalMapper2.setMapping(self.deleteAction, int(self.nodeID))
-        signalMapper2.mapped.connect(self.window.brain.deleteRelation)
+        signalMapper2.mapped.connect(self.window.brain.deleteRelation)"""
+        self.deleteAction.triggered.connect(self.signalDelete)
         menu.addAction(self.deleteAction)
 
         # Displays the menu
         menu.exec_(event.screenPos())
+
+    def signalDelete(self):
+        self.signaler.deleteRelation.emit(self.window, int(self.nodeID))
 
     def print_out(self, fake):
         # Prints out the word "Triggered"
@@ -186,7 +194,8 @@ class Anchor(QtGui.QGraphicsEllipseItem):
         # On double-click, open dialog to create a new relation node
         if not (hasattr(self.scene(), 'role') and self.scene().role == 'main'):
             return
-        self.window.brain.createRelation(self.node.nodeID, self.direction, None)
+        """self.window.brain.createRelation(self.node.nodeID, self.direction, None)"""
+        db.createRelation(self.window, self.node.nodeID, self.direction, None)
 
     def mouseMoveEvent(self, event):
         # Reimplements mouseMoveEvent to drag out a line which can be used to
@@ -247,7 +256,9 @@ class Anchor(QtGui.QGraphicsEllipseItem):
             self.dragCircle):
                 if isinstance(x, Anchor):
                     anchor = x
-                    self.window.brain.createRelationship(self.node.nodeID,
+                    """self.window.brain.createRelationship(self.node.nodeID,
+                    self.direction, anchor.node.nodeID, anchor.direction, None)"""
+                    db.createRelationship(self.window, self.node.nodeID,
                     self.direction, anchor.node.nodeID, anchor.direction, None)
                     self.window.viewNetwork.scene().removeItem(self.dragLink)
                     self.dragLink = None
@@ -300,6 +311,9 @@ class RelationshipImg(QtGui.QGraphicsLineItem):
         self.linkID_forward = linkID_forward
         self.linkID_reverse = linkID_reverse
 
+        self.signaler = grav.signaler.Signaler()
+        self.signaler.deleteRelationship.connect(db.deleteRelationships)
+
     def shape(self):
         # Redefine the clickable area to be bigger
 
@@ -333,14 +347,18 @@ class RelationshipImg(QtGui.QGraphicsLineItem):
 
         # Action to delete this link and opposite
         self.deleteAction = QtGui.QAction('Delete relationship', None)
-        signalMapper = QtCore.QSignalMapper()
+        """signalMapper = QtCore.QSignalMapper()
         self.deleteAction.triggered.connect(signalMapper.map)
         signalMapper.setMapping(self.deleteAction, self.linkID_forward)
-        signalMapper.mapped.connect(self.window.brain.deleteRelationships)
+        signalMapper.mapped.connect(db.deleteRelationships)"""
+        self.deleteAction.triggered.connect(self.signalDelete)
         menu.addAction(self.deleteAction)
 
         # Displays the menu
         menu.exec_(event.screenPos())
+
+    def signalDelete(self):
+        self.signaler.deleteRelationship.emit(self.window, self.linkID_forward)
 
     def print_out(self, fake):
         # Prints out the word "Triggered"

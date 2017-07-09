@@ -38,12 +38,14 @@ class AxisHandlePole(QtGui.QGraphicsEllipseItem):
         menu = QtGui.QMenu()
 
         # Create an action for each available axis direction
-        model = self.window.axisDirections.model
+        self.axisDirectionsIDs, self.axisDirectionsOpposites, \
+        self.axisDirectionsTexts = self.window.axisDirectionsIDs, \
+        self.window.axisDirectionsOpposites, self.window.axisDirectionsTexts
         self.dirActions = []
         self.signalMappers = []
-        for row in range(0, model.rowCount()):
+        for row in range(len(self.axisDirectionsIDs)):
             self.dirActions.append(QtGui.QAction(
-            str(model.record(row).value('text').toString()), None))
+            self.axisDirectionsTexts[row], None))
             self.signalMappers.append(QtCore.QSignalMapper())
             self.dirActions[row].triggered.connect(self.signalMappers[row].map)
             self.signalMappers[row].setMapping(self.dirActions[row], row)
@@ -55,8 +57,7 @@ class AxisHandlePole(QtGui.QGraphicsEllipseItem):
 
     def assignAxis(self, row):
         # Passes choice from context menu onto window's axis-assignment method
-        assignedDir = int(
-        self.window.axisDirections.model.record(row).value('id').toString())
+        assignedDir = self.axisDirectionsIDs[row]
         self.window.assignAxis(self.axisDir, assignedDir)
 
 
@@ -88,12 +89,11 @@ class AxisHandleLong(QtGui.QGraphicsRectItem):
         menu = QtGui.QMenu()
 
         # Create an action for each available axis direction
-        model = self.window.axisDirections.model
         self.dirActions = []
         self.signalMappers = []
-        for row in range(0, model.rowCount()):
-            self.dirActions.append(QtGui.QAction(
-            str(model.record(row).value('text').toString()), None))
+        for row in range(len(self.window.axisDirectionsIDs)):
+            self.dirActions.append(QtGui.QAction(self.window.axisDirectionsTexts[row],
+            None))
             self.signalMappers.append(QtCore.QSignalMapper())
             self.dirActions[row].triggered.connect(self.signalMappers[row].map)
             self.signalMappers[row].setMapping(self.dirActions[row], row)
@@ -105,9 +105,7 @@ class AxisHandleLong(QtGui.QGraphicsRectItem):
 
     def assignAxisAndOpposite(self, row):
         # Passes choice from context menu onto window's axis-assignment method
-        assignedDir = int(self.window.axisDirections.model.record(row).value(
-        'id').toString())
-        oppositeDir = int(self.window.axisDirections.model.record(row).value(
-        'opposite').toString())
+        assignedDir = self.window.axisDirectionsIDs[row]
+        oppositeDir = self.window.axisDirectionsOpposites[row]
         self.window.assignAxisAndOpposite(self.axisDir, assignedDir,
         oppositeDir)

@@ -60,13 +60,16 @@ class NetworkPortal(QtGui.QGraphicsView):
 
     def renderNetwork(self, dirs=[1, 2, 3, 4], ringCount=3):
         # Render the node network
-
+        #print 'renderNetwork' #foo
         centerList = [[0, 0]]
         nodeList = [None]
         self.activeLinkNodeIDs = []
         self.activeLinkNodeImgs = []
         self.oppositeLinkIDs = {}
         self.extantLinkNames = []
+
+        databaseConn = db.Brain2(self.window,
+        '~/Desktop/H2 testing/TESTING_LifeLoop_brain/brain_db/brain')
 
         for ring in range(0, ringCount):
 
@@ -95,9 +98,11 @@ class NetworkPortal(QtGui.QGraphicsView):
             self.renderLastLinksRing(centerCoords, centerNode)
         self.scene().update()
 
+        databaseConn.close()
+
     def renderOneRing(self, centerCoords, focusNodeImg, ring):
         # Render a single ring of relations around a central node
-
+        #print 'renderOneRing'  #foo
         if ring == 0:
             focusNodeID = self.activeNodeID
         else:
@@ -108,40 +113,20 @@ class NetworkPortal(QtGui.QGraphicsView):
         destNodeIDs_dir0 = [focusNodeID]
         linkIDs_forward_dir0, linkIDs_reverse_dir0 = [None], [None]
 
-        """activeLinks_dir1 = db.LinksDBModel(self.window, focusNodeID,
-        dirs=[self.window.axisAssignments[1]])
-        destNodeIDs_dir1 = activeLinks_dir1.destNodeIDs()
-        linkIDs_forward_dir1, linkIDs_reverse_dir1 = activeLinks_dir1.linkIDs()
-
-        activeLinks_dir2 = db.LinksDBModel(self.window, focusNodeID,
-        dirs=[self.window.axisAssignments[2]])
-        destNodeIDs_dir2 = activeLinks_dir2.destNodeIDs()
-        linkIDs_forward_dir2, linkIDs_reverse_dir2 = activeLinks_dir2.linkIDs()
-
-        activeLinks_dir3 = db.LinksDBModel(self.window, focusNodeID,
-        dirs=[self.window.axisAssignments[3]])
-        destNodeIDs_dir3 = activeLinks_dir3.destNodeIDs()
-        linkIDs_forward_dir3, linkIDs_reverse_dir3 = activeLinks_dir3.linkIDs()
-
-        activeLinks_dir4 = db.LinksDBModel(self.window, focusNodeID,
-        dirs=[self.window.axisAssignments[4]])
-        destNodeIDs_dir4 = activeLinks_dir4.destNodeIDs()
-        linkIDs_forward_dir4, linkIDs_reverse_dir4 = activeLinks_dir4.linkIDs()"""
-
         destNodeIDs_dir1, linkIDs_forward_dir1, linkIDs_reverse_dir1 = \
-        db.LinksIDs(self.window, focusNodeID,
+        db.linksIDs(self.window, focusNodeID,
         dirs=[self.window.axisAssignments[1]])
 
         destNodeIDs_dir2, linkIDs_forward_dir2, linkIDs_reverse_dir2 = \
-        db.LinksIDs(self.window, focusNodeID,
+        db.linksIDs(self.window, focusNodeID,
         dirs=[self.window.axisAssignments[2]])
 
         destNodeIDs_dir3, linkIDs_forward_dir3, linkIDs_reverse_dir3 = \
-        db.LinksIDs(self.window, focusNodeID,
+        db.linksIDs(self.window, focusNodeID,
         dirs=[self.window.axisAssignments[3]])
 
         destNodeIDs_dir4, linkIDs_forward_dir4, linkIDs_reverse_dir4 = \
-        db.LinksIDs(self.window, focusNodeID,
+        db.linksIDs(self.window, focusNodeID,
         dirs=[self.window.axisAssignments[4]])
 
         # Set network geometry
@@ -277,7 +262,7 @@ class NetworkPortal(QtGui.QGraphicsView):
     def renderLastLinksRing(self, centerCoords, focusNodeImg):
         # Render the last set of links after the final ring of nodes (only those
         # which connect to nodes already on the view)
-
+        #print 'renderLastLinksRing'  #foo
         focusNodeID = focusNodeImg.nodeID
 
         # Create destNodeID and relationship lists for each direction from the
@@ -285,40 +270,20 @@ class NetworkPortal(QtGui.QGraphicsView):
         destNodeIDs_dir0 = [focusNodeID]
         linkIDs_forward_dir0, linkIDs_reverse_dir0 = [None], [None]
 
-        """activeLinks_dir1 = db.LinksDBModel(self.window, focusNodeID,
-        dirs=[self.window.axisAssignments[1]])
-        destNodeIDs_dir1 = activeLinks_dir1.destNodeIDs()
-        linkIDs_forward_dir1, linkIDs_reverse_dir1 = activeLinks_dir1.linkIDs()
-
-        activeLinks_dir2 = db.LinksDBModel(self.window, focusNodeID,
-        dirs=[self.window.axisAssignments[2]])
-        destNodeIDs_dir2 = activeLinks_dir2.destNodeIDs()
-        linkIDs_forward_dir2, linkIDs_reverse_dir2 = activeLinks_dir2.linkIDs()
-
-        activeLinks_dir3 = db.LinksDBModel(self.window, focusNodeID,
-        dirs=[self.window.axisAssignments[3]])
-        destNodeIDs_dir3 = activeLinks_dir3.destNodeIDs()
-        linkIDs_forward_dir3, linkIDs_reverse_dir3 = activeLinks_dir3.linkIDs()
-
-        activeLinks_dir4 = db.LinksDBModel(self.window, focusNodeID,
-        dirs=[self.window.axisAssignments[4]])
-        destNodeIDs_dir4 = activeLinks_dir4.destNodeIDs()
-        linkIDs_forward_dir4, linkIDs_reverse_dir4 = activeLinks_dir4.linkIDs()"""
-
         destNodeIDs_dir1, linkIDs_forward_dir1, linkIDs_reverse_dir1 = \
-        db.LinksIDs(self.window, focusNodeID,
+        db.linksIDs(self.window, focusNodeID,
         dirs=[self.window.axisAssignments[1]])
 
         destNodeIDs_dir2, linkIDs_forward_dir2, linkIDs_reverse_dir2 = \
-        db.LinksIDs(self.window, focusNodeID,
+        db.linksIDs(self.window, focusNodeID,
         dirs=[self.window.axisAssignments[2]])
 
         destNodeIDs_dir3, linkIDs_forward_dir3, linkIDs_reverse_dir3 = \
-        db.LinksIDs(self.window, focusNodeID,
+        db.linksIDs(self.window, focusNodeID,
         dirs=[self.window.axisAssignments[3]])
 
         destNodeIDs_dir4, linkIDs_forward_dir4, linkIDs_reverse_dir4 = \
-        db.LinksIDs(self.window, focusNodeID,
+        db.linksIDs(self.window, focusNodeID,
         dirs=[self.window.axisAssignments[4]])
 
         # Set network geometry
@@ -414,9 +379,12 @@ def remoteLinkInterface(interfaceOwner, posX, posY):
 
     # Detect invalid names and abort (return) method if necessary
     if ok and not entry == '':
-        nodeModel = db.NodeDBModel(nodeName=entry)
-        if nodeModel.nodeID != None:
-            interfaceOwner.linkPortal.setActiveNode(nodeModel.nodeID)
+        databaseConn = db.Brain2(window,
+        '~/Desktop/H2 testing/TESTING_LifeLoop_brain/brain_db/brain')
+        nodeID, fake1, fake2 = db.nodeDBInfo(window, nodeName=entry)
+        databaseConn.close()
+        if nodeID != None:
+            interfaceOwner.linkPortal.setActiveNode(nodeID)
             return
     linkPortalClose(interfaceOwner)
 
@@ -444,7 +412,9 @@ def chooseNode(window, nodeID):
         if anchor.linkPortal == None:
             return
 
-        window.brain.createRelationship(anchor.node.nodeID, anchor.direction,
+        """window.brain.createRelationship(anchor.node.nodeID, anchor.direction,
+        nodeID, anchor.oppositeDirection, None)"""
+        db.createRelationship(window, anchor.node.nodeID, anchor.direction,
         nodeID, anchor.oppositeDirection, None)
         linkPortalClose(anchor)
 

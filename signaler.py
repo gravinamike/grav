@@ -18,6 +18,8 @@ class Signaler(QtCore.QObject):
     # comes to signals.
 
     select = QtCore.pyqtSignal(grav.window.Window, int)
+    deleteRelation = QtCore.pyqtSignal(grav.window.Window, int)
+    deleteRelationship = QtCore.pyqtSignal(grav.window.Window, int)
     portalInit = QtCore.pyqtSignal(object, int, int)
 
     def __init__(self):

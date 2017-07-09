@@ -922,9 +922,8 @@ class TextEdit(QtGui.QMainWindow):
         self.text.setTextCursor(cursor)
 
         # Construct the url
-        brainGUID = db.BrainModel().model.record(0).value('GUID').toString()
-        nodeGUID = db.NodeDBModel(nodeID).model.record(0).value(
-        'GUID').toString()
+        brainGUID = db.databaseInfo(self.window)
+        fake1, nodeGUID, fake2 = db.nodeDBInfo(self.window, nodeID)
         url = 'brain://' + brainGUID + '/' + nodeGUID
 
         # Grab the text's format
@@ -956,11 +955,12 @@ class TextEdit(QtGui.QMainWindow):
             GUIDs = urlString.replace('brain://','').split('/')
             brainGUID, nodeGUID = str(GUIDs[0]).upper(), GUIDs[1]
             #Check against the database GUID
-            brainModel = db.BrainModel(brainGUID)
-            if brainModel.model.rowCount() == 0:
-                print 'Clicked node link does not lead to a node in this Brain!'
+            if db.databaseInfo(self.window, brainGUID) == None:
+                print 'Clicked node link does not lead to a node in this \
+                database!'
             else:
-                nodeID = db.NodeDBModel(nodeGUID=nodeGUID).nodeID
+                nodeID, fake1, fake2 = db.nodeDBInfo(self.window,
+                nodeGUID=nodeGUID)
                 self.window.viewNetwork.setActiveNode(nodeID)
         else:
             self.text.setSource(QtCore.QUrl())
