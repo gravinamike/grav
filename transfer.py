@@ -1,5 +1,90 @@
-#! python3
+#! python2
 #File: transfer.py
+
+import os
+
+# User settings.
+
+configs = {
+           1: ['down', 'work', 'yes', 'yes'],
+           2: ['up', 'work', 'yes', 'yes'],
+           3: ['down', 'home', 'yes', 'yes'],
+           4: ['up', 'home', 'yes', 'yes']
+           }
+
+path_base = {
+            'up': {'home': 'E:\\', 'work': 'D:\\'},
+            'down': {'home': 'C:\\Users\\Grav\\Desktop\\',
+                     'work': 'C:\\Users\\Michael Gravina\\Desktop\\'}
+            }
+
+path_end = {'up': ['Transfer\\'], 'down': ['Transfer\\']}
+
+skiparray = {
+             'up': {'home': [], 'work': ['']},
+             'down': {'home': ['E:\\Transfer\\CompMem'], 'work': []}
+             }
+
+
+def transfer_stick(direction=None, location=None, duplicate='yes',
+                   overwrite='no'):
+    # Downloads or uploads from one set of directories to another.
+
+    # Try different approaches to getting all 4 parameters.
+    while not (
+                direction in ['up', 'down']
+                and location in ['home', 'work']
+                and duplicate in ['yes', 'no']
+                and overwrite in ['yes', 'no']
+                ):
+
+        # Try to get configuration from user to specify parameters.
+        configuration = input('Configuration? (1 - 4): ')
+        try:
+            configuration = int(configuration)
+        except ValueError:
+            configuration = None
+        if configuration in [1, 2, 3, 4]:
+            direction, location, duplicate, overwrite = configs[int(configuration)]
+
+        # If no valid configuration, ask user for parameters one at a time.
+        else:
+            print ('direction =', direction, ', location =', location, \
+            ', duplicate =', duplicate, 'overwrite =', overwrite
+            print 'Parameters not all entered correctly when script called' +
+            ' and no valid configuration selected.'
+            direction = input('Enter direction (up or down): ')
+            location = input('Enter location (home or work): ')
+            duplicate = input('Enter whether to duplicate (yes or no): ')
+            overwrite = input('Enter overwrite permission (yes or no): ')
+
+
+
+    dir_up = [None] * len(path_end['up'])
+    for i, j in enumerate(path_end['up']):
+        dir_up[i] = os.path.join(path_base['up'][location], j)
+
+    dir_dwn = [None] * len(path_end['down'])
+    for i, j in enumerate(path_end['down']):
+        dir_dwn[i] = os.path.join(path_base['down'][location], j)
+
+    skiplist = skiparray[direction][location]
+    print 'Items to skip: ', skiplist
+    #------------
+
+    if direction == 'down':
+        print "Downloading from stick..."
+        for item in dir_up:
+            index = dir_up.index(item)
+            transfer_tree(dir_src=dir_up[index], dir_dst=dir_dwn[index], skiplist=skiplist, overwrite=overwrite, duplicate=duplicate)
+
+    if direction == 'up':
+        print "Uploading to stick..."
+        for item in dir_dwn:
+            index = dir_dwn.index(item)
+            transfer_tree(dir_src=dir_dwn[index], dir_dst=dir_up[index], skiplist=skiplist, overwrite=overwrite, duplicate=duplicate)
+
+    print "Transfer complete."
 
 def handleRemoveReadonly(func, path, exc):
     """Handles readonly errors by setting files to readable."""
@@ -112,79 +197,6 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
                     os.remove(s)'''
             counter_delete.increment()
 
-
-def transfer_stick(direction=None, location=None, duplicate='yes', overwrite='no'):
-    """Downloads or uploads from one set of directories to another."""
-
-    #Import modules---
-    import os
-    #-----------------
-
-    #Variables---
-    configs = {
-    1: ['down', 'work', 'yes', 'yes'],
-    2: ['up', 'work', 'yes', 'yes'],
-    3: ['down', 'home', 'yes', 'yes'],
-    4: ['up', 'home', 'yes', 'yes']
-    }
-    pathbase = {
-    'up':
-    {'home': 'E:\\', 'work': 'D:\\'},
-    'down':
-    {'home': 'C:\\Users\\Grav\\Desktop\\', 'work': 'C:\\Users\\Michael Gravina\\Desktop\\'}
-    }
-    pathend = {'up': ['Transfer\\'],
-    'down': ['Transfer\\']}
-    skiparray = {
-    'up':
-    {'home': [], 'work': ['']},
-    'down':
-    {'home': ['E:\\Transfer\\CompMem'], 'work': []}
-    }
-
-    while not(direction in ['up', 'down'] and location in ['home', 'work'] and
-    duplicate in ['yes', 'no'] and overwrite in ['yes', 'no']):
-        configuration = input('Configuration? (1 - 4): ')
-        try:
-            configuration = int(configuration)
-        except ValueError:
-            configuration = None
-        if configuration in [1, 2, 3, 4]:
-                direction, location, duplicate, overwrite = configs[int(configuration)]
-        else:
-            print 'direction =', direction, ', location =', location, ', duplicate =',
-            duplicate, 'overwrite =', overwrite
-            direction = input('Parameters not all entered correctly when script called' +
-            ' and no valid configuration selected. \nEnter direction (up or down): ')
-            location = input('Enter location (home or work): ')
-            duplicate = input('Enter whether to duplicate (yes or no): ')
-            overwrite = input('Enter overwrite permission (yes or no): ')
-
-    dir_up = [None] * len(pathend['up'])
-    for i, j in enumerate(pathend['up']):
-        dir_up[i] = os.path.join(pathbase['up'][location], j)
-
-    dir_dwn = [None] * len(pathend['down'])
-    for i, j in enumerate(pathend['down']):
-        dir_dwn[i] = os.path.join(pathbase['down'][location], j)
-
-    skiplist = skiparray[direction][location]
-    print 'Items to skip: ', skiplist
-    #------------
-
-    if direction == 'down':
-        print "Downloading from stick..."
-        for item in dir_up:
-            index = dir_up.index(item)
-            transfer_tree(dir_src=dir_up[index], dir_dst=dir_dwn[index], skiplist=skiplist, overwrite=overwrite, duplicate=duplicate)
-
-    if direction == 'up':
-        print "Uploading to stick..."
-        for item in dir_dwn:
-            index = dir_dwn.index(item)
-            transfer_tree(dir_src=dir_dwn[index], dir_dst=dir_up[index], skiplist=skiplist, overwrite=overwrite, duplicate=duplicate)
-
-    print "Transfer complete."
 
 
 #Code to make module into script-----------
