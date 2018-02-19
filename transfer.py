@@ -2,37 +2,26 @@
 #File: transfer.py
 
 import os
+import sys
+import shutil
+import errno
+import stat
 
-# User settings.
+from send2trash import send2trash
 
-configs = {
-           1: ['down', 'work', 'yes', 'yes'],
-           2: ['up', 'work', 'yes', 'yes'],
-           3: ['down', 'home', 'yes', 'yes'],
-           4: ['up', 'home', 'yes', 'yes']
-           }
-
-path_base = {
-            'up': {'home': 'E:\\', 'work': 'D:\\'},
-            'down': {'home': 'C:\\Users\\Grav\\Desktop\\',
-                     'work': 'C:\\Users\\Michael Gravina\\Desktop\\'}
-            }
-
-path_end = {'up': ['Transfer\\'], 'down': ['Transfer\\']}
-
-skiparray = {
-             'up': {'home': [], 'work': ['']},
-             'down': {'home': ['E:\\Transfer\\CompMem'], 'work': []}
-             }
+import transfer_settings
 
 
 def transfer_stick(direction=None, location=None, duplicate='yes',
                    overwrite='no'):
     # Downloads or uploads from one set of directories to another.
 
+    direction_names = ['up', 'down']
+    opposite_direction_names = {'up': 'down', 'down': 'up'}
+
     # Try different approaches to getting all 4 parameters.
     while not (
-                direction in ['up', 'down']
+                direction in direction_names
                 and location in ['home', 'work']
                 and duplicate in ['yes', 'no']
                 and overwrite in ['yes', 'no']
@@ -45,54 +34,50 @@ def transfer_stick(direction=None, location=None, duplicate='yes',
         except ValueError:
             configuration = None
         if configuration in [1, 2, 3, 4]:
-            direction, location, duplicate, overwrite = configs[int(configuration)]
+            direction, location, duplicate, overwrite = transfer_settings.configs[configuration]
 
         # If no valid configuration, ask user for parameters one at a time.
         else:
-            print ('direction =', direction, ', location =', location, \
-            ', duplicate =', duplicate, 'overwrite =', overwrite
-            print 'Parameters not all entered correctly when script called' +
-            ' and no valid configuration selected.'
+            print 'direction =', direction, ', location =', location, ', duplicate =', duplicate, 'overwrite =', overwrite
+            print 'Parameters not all entered correctly when script called and no valid configuration selected.'
             direction = input('Enter direction (up or down): ')
             location = input('Enter location (home or work): ')
             duplicate = input('Enter whether to duplicate (yes or no): ')
             overwrite = input('Enter overwrite permission (yes or no): ')
 
+    # Construct a list of directories for transfer.
+    directories = {
+                   direction_name: [
+                                    os.path.join(transfer_settings.path_base[direction_name][location],
+                                                 path_end)
+                                    for path_end in transfer_settings.path_end[direction_name]
+                                    ]
+                   for direction_name in direction_names
+                   }
 
-
-    dir_up = [None] * len(path_end['up'])
-    for i, j in enumerate(path_end['up']):
-        dir_up[i] = os.path.join(path_base['up'][location], j)
-
-    dir_dwn = [None] * len(path_end['down'])
-    for i, j in enumerate(path_end['down']):
-        dir_dwn[i] = os.path.join(path_base['down'][location], j)
-
-    skiplist = skiparray[direction][location]
+    # Get a list of directories to skip transferring.
+    skiplist = transfer_settings.skip_array[direction][location]
     print 'Items to skip: ', skiplist
-    #------------
 
-    if direction == 'down':
-        print "Downloading from stick..."
-        for item in dir_up:
-            index = dir_up.index(item)
-            transfer_tree(dir_src=dir_up[index], dir_dst=dir_dwn[index], skiplist=skiplist, overwrite=overwrite, duplicate=duplicate)
 
-    if direction == 'up':
-        print "Uploading to stick..."
-        for item in dir_dwn:
-            index = dir_dwn.index(item)
-            transfer_tree(dir_src=dir_dwn[index], dir_dst=dir_up[index], skiplist=skiplist, overwrite=overwrite, duplicate=duplicate)
+    # Transfer the files.
+    print "Downloading from stick..." if direction == 'down' else "Uploading to stick..."
+
+    for i, directory in enumerate(directories[opposite_direction_names[direction]]):
+        transfer_tree(
+                      dir_src=directory,
+                      dir_dst=directories[direction][i],
+                      skiplist=skiplist,
+                      overwrite=overwrite,
+                      duplicate=duplicate,
+                      )
 
     print "Transfer complete."
 
+
+
 def handleRemoveReadonly(func, path, exc):
-    """Handles readonly errors by setting files to readable."""
-
-    #Import modules---
-    import errno, os, stat, shutil
-    #-----------------
-
+    # Handles readonly errors by setting files to readable.
     excvalue = exc[1]
     if func in (os.rmdir, os.remove) and excvalue.errno == errno.EACCES:
         os.chmod(path, stat.S_IRWXU| stat.S_IRWXG| stat.S_IRWXO) # 0777
@@ -100,8 +85,10 @@ def handleRemoveReadonly(func, path, exc):
     else:
         raise
 
+
+
 class ProgressCount:
-    """Tracks progress of a process operating over a list."""
+    # Tracks progress of a process operating over a list.
 
     def __init__(self, listlength, milestonesize = 25):
         self.listlength = listlength
@@ -119,43 +106,33 @@ class ProgressCount:
                 print '100%'
             self.milestone = self.milestone + self.milestonesize
 
-def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no', symlinks=False, ignore=None):
-    """Transfers tree and files from dir_src to dir_dst."""
 
-    #Note that this variation of the copytree isn't entirely consistent with the
-    #standard copytree:
-    #   *it doesn't honor symlinks and ignore parameters for the root directory of the
-    #	 src tree;
-    #   *it doesn't raise shutil.Error for errors at the root level of src;
-    #   *in case of errors during copying of a subtree, it will raise shutil.Error for
-    #	 that subtree instead of trying to copy other subtrees and raising single
-    #    combined shutil.Error.
 
-    #Import modules---
-    import os, shutil
-    from send2trash import send2trash
-    #-----------------
+def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
+                  symlinks=False, ignore=None):
+    # Transfers tree and files from dir_src to dir_dst.
 
-    #Variables---
-
-    #------------
-
+    # Initialize progress trackers.
     counter_copy = ProgressCount(len(os.listdir(dir_src)))
     counter_delete = ProgressCount(len(os.listdir(dir_src)))
 
-	# Checks for duplicate files and folders at destination. If such exist, checks
-    # overwrite variable and either deletes originals in prep for overwrite or aborts.
+	# Checks for duplicate files and folders at destination. If such exist,
+    # checks overwrite variable and either deletes originals in prep for
+    # overwrite or aborts.
     print 'Checking', dir_dst, 'for duplicate files and folders...'
 
+    # Construct a list of duplicate paths.
     deletelist = []
     for item in os.listdir(dir_src):
         d = os.path.join(dir_dst, item)
         if (os.path.exists(d)) and (d not in skiplist):
             deletelist.append(d)
+
+    # Either delete the duplicates or report skip.
     if len(deletelist) > 0:
         if overwrite == 'yes':
-            print 'File or folder exists at destination and overwrite set to True. \
-            \nDeleting', len(deletelist), 'files and/or folders.'
+            print 'File or folder exists at destination and overwrite set to True.'
+            print 'Deleting', len(deletelist), 'files and/or folders.'
             counter_overwrite = ProgressCount(len(deletelist))
             for item in deletelist:
                 send2trash(item)
@@ -165,12 +142,11 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
                     os.remove(item)'''
                 counter_overwrite.increment()
         else:
-            print 'File or folder exists at destination and overwrite set to False. \
-            \nTransfer aborted.'
-            import sys
+            print 'File or folder exists at destination and overwrite set to False.'
+            print 'Transfer aborted.'
             sys.exit()
 
-    # Copies files over to destination.
+    # Copy files over to destination.
     print 'Copying', dir_src, 'to', dir_dst
 
     for item in os.listdir(dir_src):
@@ -183,7 +159,7 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
                 shutil.copy2(s, d)
         counter_copy.increment()
 
-    # Deletes source files.
+    # Delete source files.
     if duplicate == 'no':
         print "Deleting original..."
 
@@ -199,8 +175,6 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
 
 
 
-#Code to make module into script-----------
+
 if __name__ == "__main__":
     transfer_stick()
-    #transfer_stick(sys.argv[1])
-#------------------------------------------
