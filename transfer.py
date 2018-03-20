@@ -13,7 +13,7 @@ import transfer_settings
 
 
 def transfer_stick(direction=None, location=None, duplicate='yes',
-                   overwrite='no'):
+                   overwrite='no', configuration=None):
     # Downloads or uploads from one set of directories to another.
 
     direction_names = ['up', 'down']
@@ -22,18 +22,21 @@ def transfer_stick(direction=None, location=None, duplicate='yes',
     # Try different approaches to getting all 4 parameters.
     while not (
                 direction in direction_names
-                and location in ['home', 'work']
+                and location in ['prep1', 'prep2', 'work', 'home']
                 and duplicate in ['yes', 'no']
                 and overwrite in ['yes', 'no']
                 ):
 
-        # Try to get configuration from user to specify parameters.
-        configuration = input('Configuration? (1 - 4): ')
-        try:
-            configuration = int(configuration)
-        except ValueError:
-            configuration = None
-        if configuration in [1, 2, 3, 4]:
+        # If configuration was not specified,
+        if configuration == None:
+            # Try to get configuration from user to specify parameters.
+            configuration = input('Configuration? (1 - 6): ')
+            try:
+                configuration = int(configuration)
+            except ValueError:
+                configuration = None
+
+        if configuration in transfer_settings.configs.keys():
             direction, location, duplicate, overwrite = transfer_settings.configs[configuration]
 
         # If no valid configuration, ask user for parameters one at a time.
@@ -47,21 +50,23 @@ def transfer_stick(direction=None, location=None, duplicate='yes',
 
     # Construct a list of directories for transfer.
     directories = {
-                   direction_name: [
-                                    os.path.join(transfer_settings.path_base[direction_name][location],
-                                                 path_end)
-                                    for path_end in transfer_settings.path_end[direction_name]
-                                    ]
+                   direction_name: [transfer_settings.paths[direction_name][location]]
                    for direction_name in direction_names
                    }
+    print ''
+    print 'Directories to copy: '
+    print directories
 
     # Get a list of directories to skip transferring.
     skiplist = transfer_settings.skip_array[direction][location]
-    print 'Items to skip: ', skiplist
+    print ''
+    print 'Items to skip: '
+    print skiplist
 
 
     # Transfer the files.
-    print "Downloading from stick..." if direction == 'down' else "Uploading to stick..."
+    print ''
+    print "Downloading..." if direction == 'down' else "Uploading..."
 
     for i, directory in enumerate(directories[opposite_direction_names[direction]]):
         transfer_tree(
@@ -72,6 +77,7 @@ def transfer_stick(direction=None, location=None, duplicate='yes',
                       duplicate=duplicate,
                       )
 
+    print ''
     print "Transfer complete."
 
 
@@ -119,6 +125,7 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
 	# Checks for duplicate files and folders at destination. If such exist,
     # checks overwrite variable and either deletes originals in prep for
     # overwrite or aborts.
+    print ''
     print 'Checking', dir_dst, 'for duplicate files and folders...'
 
     # Construct a list of duplicate paths.
@@ -147,6 +154,7 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
             sys.exit()
 
     # Copy files over to destination.
+    print ''
     print 'Copying', dir_src, 'to', dir_dst
 
     for item in os.listdir(dir_src):
@@ -161,6 +169,7 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
 
     # Delete source files.
     if duplicate == 'no':
+        print ''
         print "Deleting original..."
 
         for item in os.listdir(dir_src):
@@ -177,4 +186,7 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
 
 
 if __name__ == "__main__":
-    transfer_stick()
+    #transfer_stick()
+    key = 2
+    for config in transfer_settings.config_sets[key]:
+        transfer_stick(configuration=config)
