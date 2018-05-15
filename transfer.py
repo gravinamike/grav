@@ -13,7 +13,7 @@ import transfer_settings
 
 
 def transfer_stick(direction=None, location=None, duplicate='yes',
-                   overwrite='no', configuration=None):
+                   overwrite='no', permadelete='no', configuration=None):
     # Downloads or uploads from one set of directories to another.
 
     direction_names = ['up', 'down']
@@ -22,9 +22,10 @@ def transfer_stick(direction=None, location=None, duplicate='yes',
     # Try different approaches to getting all 4 parameters.
     while not (
                 direction in direction_names
-                and location in ['prep1', 'prep2', 'work', 'home']
+                and location in ['prep1', 'prep2', 'work', 'home', 'Lifelogging']
                 and duplicate in ['yes', 'no']
                 and overwrite in ['yes', 'no']
+                and permadelete in ['yes', 'no']
                 ):
 
         # If configuration was not specified,
@@ -41,12 +42,13 @@ def transfer_stick(direction=None, location=None, duplicate='yes',
 
         # If no valid configuration, ask user for parameters one at a time.
         else:
-            print 'direction =', direction, ', location =', location, ', duplicate =', duplicate, 'overwrite =', overwrite
+            print 'direction =', direction, ', location =', location, ', duplicate =', duplicate, 'overwrite =', overwrite, 'delete =', delete
             print 'Parameters not all entered correctly when script called and no valid configuration selected.'
             direction = input('Enter direction (up or down): ')
             location = input('Enter location (home or work): ')
             duplicate = input('Enter whether to duplicate (yes or no): ')
             overwrite = input('Enter overwrite permission (yes or no): ')
+            permadelete = input('Enter whether to permadelete old files (yes or no): ')
 
     # Construct a list of directories for transfer.
     directories = {
@@ -57,11 +59,15 @@ def transfer_stick(direction=None, location=None, duplicate='yes',
     print 'Directories to copy: '
     print directories
 
-    # Get a list of directories to skip transferring.
+    # Get a list of directories to skip transferring, or to target exclusively from parent folder.
     skiplist = transfer_settings.skip_array[direction][location]
+    targetlist = transfer_settings.target_array[direction][location]
     print ''
     print 'Items to skip: '
     print skiplist
+    print ''
+    print 'Items to target exclusively from parent folder: '
+    print targetlist
 
 
     # Transfer the files.
@@ -73,8 +79,10 @@ def transfer_stick(direction=None, location=None, duplicate='yes',
                       dir_src=directory,
                       dir_dst=directories[direction][i],
                       skiplist=skiplist,
+                      targetlist=targetlist,
                       overwrite=overwrite,
                       duplicate=duplicate,
+                      permadelete=permadelete,
                       )
 
     print ''
@@ -114,8 +122,8 @@ class ProgressCount:
 
 
 
-def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
-                  symlinks=False, ignore=None):
+def transfer_tree(dir_src, dir_dst, skiplist=[], targetlist=[], overwrite='no', duplicate='no',
+                  permadelete='no', symlinks=False, ignore=None):
     # Transfers tree and files from dir_src to dir_dst.
 
     # Initialize progress trackers.
@@ -132,21 +140,25 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
     deletelist = []
     for item in os.listdir(dir_src):
         d = os.path.join(dir_dst, item)
-        if (os.path.exists(d)) and (d not in skiplist):
+	if ((len(targetlist) == 0) and (d not in targetlist)) or (d in skiplist) or (not os.path.exists(d)):
+           pass
+        else:
             deletelist.append(d)
 
     # Either delete the duplicates or report skip.
     if len(deletelist) > 0:
         if overwrite == 'yes':
             print 'File or folder exists at destination and overwrite set to True.'
-            print 'Deleting', len(deletelist), 'files and/or folders.'
+            print ('Deleting' if permadelete=='no' else 'Permadeleting'), len(deletelist), 'files and/or folders.'
             counter_overwrite = ProgressCount(len(deletelist))
             for item in deletelist:
-                send2trash(item)
-                '''if os.path.isdir(item):
-                    shutil.rmtree(item, ignore_errors=False, onerror=handleRemoveReadonly)
+		if permadelete == 'yes':
+                    if os.path.isdir(item):
+                        shutil.rmtree(item, ignore_errors=False, onerror=handleRemoveReadonly)
+                    else:
+                        os.remove(item)
                 else:
-                    os.remove(item)'''
+		    send2trash(item)
                 counter_overwrite.increment()
         else:
             print 'File or folder exists at destination and overwrite set to False.'
@@ -160,7 +172,9 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
     for item in os.listdir(dir_src):
         s = os.path.join(dir_src, item)
         d = os.path.join(dir_dst, item)
-        if s not in skiplist:
+        if ((len(targetlist) == 0) and (s not in targetlist)) or (s in skiplist):
+            pass
+        else:
             if os.path.isdir(s):
                 shutil.copytree(s, d, symlinks, ignore)
             else:
@@ -170,16 +184,20 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
     # Delete source files.
     if duplicate == 'no':
         print ''
-        print "Deleting original..."
+        print ("Deleting original..." if permadelete=='no' else "Permadeleting original...")
 
         for item in os.listdir(dir_src):
             s = os.path.join(dir_src, item)
-            if s not in skiplist:
-                send2trash(s)
-                '''if os.path.isdir(s):
-                    shutil.rmtree(s, ignore_errors=False, onerror=handleRemoveReadonly)
+            if ((len(targetlist) == 0) and (s not in targetlist)) or (s in skiplist):
+                pass
+            else:
+                if permadelete == 'yes':
+                    if os.path.isdir(s):
+                        shutil.rmtree(s, ignore_errors=False, onerror=handleRemoveReadonly)
+                    else:
+                        os.remove(s)
                 else:
-                    os.remove(s)'''
+                    send2trash(s)
             counter_delete.increment()
 
 
@@ -187,6 +205,6 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], overwrite='no', duplicate='no',
 
 if __name__ == "__main__":
     #transfer_stick()
-    key = 2
+    key = 5
     for config in transfer_settings.config_sets[key]:
         transfer_stick(configuration=config)
