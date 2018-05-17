@@ -30,14 +30,14 @@ paths = {
                    'prep1': 'C:\\Users\\Michael Gravina\\Desktop\\LifeSeahorse_test\\', # Treating grid folder as "upstream"
                    'prep2': 'C:\\Anaconda2\\Lib\\', # Treating seahorse folder as "upstream"
                    #
-                   'work': 'D:\\Transfer\\',
-                   'home': 'E:\\Transfer\\',
+                   'work': 'E:\\Transfer\\',
+                   'home': 'D:\\Transfer\\',
 		   #
                    'Lifelogging': 'E:\\VIDEO\\',
                    },
             'down': {
                      'prep1': 'C:\\Users\\Michael Gravina\\Desktop\\Transfer\\',
-                     'prep2': 'C:\\Users\\Michael Gravina\\Desktop\\Transfer\\seahorse\\',
+                     'prep2': 'C:\\Users\\Michael Gravina\\Desktop\\Transfer\\',
                      #
                      'work': 'C:\\Users\\Michael Gravina\\Desktop\\Transfer\\',
                      'home': 'C:\\Users\\Grav\\Desktop\\Transfer\\',
@@ -72,7 +72,7 @@ skip_array = {
 target_array = {
              'up': {
                     'prep1': [],
-                    'prep2': ['seahorse\\'],
+                    'prep2': ['C:\\Anaconda2\\Lib\\seahorse'],
                     #
                     'home': [],
                     'work': [],

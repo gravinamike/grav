@@ -38,7 +38,7 @@ def transfer_stick(direction=None, location=None, duplicate='yes',
                 configuration = None
 
         if configuration in transfer_settings.configs.keys():
-            direction, location, duplicate, overwrite = transfer_settings.configs[configuration]
+            direction, location, duplicate, overwrite, permadelete = transfer_settings.configs[configuration]
 
         # If no valid configuration, ask user for parameters one at a time.
         else:
@@ -61,7 +61,7 @@ def transfer_stick(direction=None, location=None, duplicate='yes',
 
     # Get a list of directories to skip transferring, or to target exclusively from parent folder.
     skiplist = transfer_settings.skip_array[direction][location]
-    targetlist = transfer_settings.target_array[direction][location]
+    targetlist = transfer_settings.target_array[opposite_direction_names[direction]][location]
     print ''
     print 'Items to skip: '
     print skiplist
@@ -139,8 +139,15 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], targetlist=[], overwrite='no', 
     # Construct a list of duplicate paths.
     deletelist = []
     for item in os.listdir(dir_src):
+        s = os.path.join(dir_src, item)
         d = os.path.join(dir_dst, item)
-	if ((len(targetlist) == 0) and (d not in targetlist)) or (d in skiplist) or (not os.path.exists(d)):
+	if (
+                   ((len(targetlist) != 0) and not (s in targetlist))
+                   or
+                   (s in skiplist)
+                   or
+                   (not os.path.exists(d))
+               ):
            pass
         else:
             deletelist.append(d)
@@ -172,7 +179,11 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], targetlist=[], overwrite='no', 
     for item in os.listdir(dir_src):
         s = os.path.join(dir_src, item)
         d = os.path.join(dir_dst, item)
-        if ((len(targetlist) == 0) and (s not in targetlist)) or (s in skiplist):
+        if (
+                    ((len(targetlist) != 0) and not (s in targetlist))
+                    or
+                    (s in skiplist)
+               ):
             pass
         else:
             if os.path.isdir(s):
@@ -188,7 +199,11 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], targetlist=[], overwrite='no', 
 
         for item in os.listdir(dir_src):
             s = os.path.join(dir_src, item)
-            if ((len(targetlist) == 0) and (s not in targetlist)) or (s in skiplist):
+            if (
+                        ((len(targetlist) != 0) and not (s in targetlist))
+                        or
+                        (s in skiplist)
+                   ):
                 pass
             else:
                 if permadelete == 'yes':
@@ -205,6 +220,6 @@ def transfer_tree(dir_src, dir_dst, skiplist=[], targetlist=[], overwrite='no', 
 
 if __name__ == "__main__":
     #transfer_stick()
-    key = 5
+    key = 2
     for config in transfer_settings.config_sets[key]:
         transfer_stick(configuration=config)
